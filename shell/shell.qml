@@ -122,10 +122,14 @@ ShellRoot {
   }
 
   // Classic parser equivalents of the same rules.
-  readonly property var legacyBaseRules: [
-    "float", "pin", "noinitialfocus", "noblur", "noshadow", "nodim",
-    "bordersize 0", "rounding 0"
-  ]
+  readonly property var legacyBaseRules: {
+    var rules = ["float", "noinitialfocus", "noblur", "noshadow", "nodim",
+                 "bordersize 0", "rounding 0"]
+    // The classic parser has no way to say "not pinned", so this one is added
+    // rather than set either way.
+    if (Config.floatFollows) rules.splice(1, 0, "pin")
+    return rules
+  }
 
   function legacyKeyword(rule, match) {
     return "keyword windowrule " + rule + ", " + match
@@ -172,7 +176,8 @@ ShellRoot {
   // it would leave every note greyed out all day.
   readonly property string baseRuleLua:
     'hl.window_rule({ match = { title = "^(ledge-note:.*)$" }'
-    + ', float = true, pin = true, no_initial_focus = true'
+    + ', float = true, pin = ' + (Config.floatFollows ? "true" : "false")
+    + ', no_initial_focus = true'
     + ', no_blur = true, no_shadow = true, no_dim = true'
     + ', border_size = 0, rounding = 0 })'
 
@@ -322,27 +327,35 @@ ShellRoot {
   // already pointing puts the compositor's focus rule on the note's side
   // instead of against it.
   property string newFloatId: ""
-  property string pendingNewId: ""
+  property string pendingPopId: ""
 
   function newFloatingNote(body) {
     Bus.closeRequested()
     var id = Store.create(body || "", "")
     shell.newFloatId = id
-    shell.pendingNewId = id
+    shell.popUnderPointer(id)
+    return id
+  }
+
+  // Pop a note out where the pointer is, focused. Used for a brand-new note and
+  // for one picked out of the Library by keyboard, which are the two cases
+  // where you have just asked for this note and want to type into it.
+  function popUnderPointer(id) {
+    if (Store.isFloating(id)) return
+    shell.pendingPopId = id
     cursorProc.command = ["hyprctl", "cursorpos", "-j"]
     cursorProc.running = true
-    return id
   }
 
   Process {
     id: cursorProc
-    stdout: StdioCollector { onStreamFinished: shell.placeNewNote(text) }
+    stdout: StdioCollector { onStreamFinished: shell.placePoppedNote(text) }
   }
 
-  function placeNewNote(text) {
-    var id = shell.pendingNewId
+  function placePoppedNote(text) {
+    var id = shell.pendingPopId
     if (!id.length) return
-    shell.pendingNewId = ""
+    shell.pendingPopId = ""
 
     var x = 0, y = 0, known = false
     try {
@@ -386,6 +399,7 @@ ShellRoot {
   Connections {
     target: Bus
     function onPopRequested(id, x, y) { shell.popNote(id, x, y, false) }
+    function onPopToPointerRequested(id) { shell.popUnderPointer(id) }
     function onNewRequested() { shell.toggleNewFloat() }
   }
 
@@ -430,10 +444,24 @@ ShellRoot {
     Process {
       property string noteId: ""
       stdout: StdioCollector {
-        onStreamFinished: if (String(text).trim() === "open") shell.revealNote(noteId)
+        onStreamFinished: {
+          var answer = String(text).trim()
+          if (answer === "open") shell.revealNote(noteId)
+          else if (answer === "snooze") shell.snoozeReminder(noteId)
+        }
       }
       onExited: destroy()
     }
+  }
+
+  // Snoozing sets a fresh reminder rather than postponing one. The sweep clears
+  // a reminder before notifying, precisely so a notification that fails to send
+  // cannot leave it due and re-firing, which means by the time an answer comes
+  // back there is nothing left to postpone.
+  readonly property int snoozeMinutes: 15
+  function snoozeReminder(id) {
+    if (Store.indexOfId(id) < 0) return
+    Store.setReminder(id, new Date(Date.now() + shell.snoozeMinutes * 60000).toISOString())
   }
 
   // Bring a note to the user's attention wherever it currently lives.
@@ -469,6 +497,7 @@ ShellRoot {
     if (!proc) return
     proc.command = ["notify-send", "--app-name=Ledge", "--icon=ledge",
                     "-A", "open=Open note",
+                    "-A", "snooze=Snooze " + shell.snoozeMinutes + "m",
                     item.title, lines.slice(0, 4).join("\n")]
     proc.running = true
   }
@@ -540,6 +569,13 @@ ShellRoot {
       if (!Store.isFloating(id)) return "not floating"
       Store.unfloat(id)
       Store.discardIfBlank(id)
+      return "ok"
+    }
+
+    function copy(id: string): string {
+      var n = Store.get(id)
+      if (!n) return "unknown id"
+      Store.copyText(n.body)
       return "ok"
     }
 

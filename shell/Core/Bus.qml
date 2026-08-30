@@ -13,6 +13,10 @@ QtObject {
   // must reach the compositor before the window maps, so the shell runs that
   // first and only then adds the note to the float table.
   signal popRequested(string id, real x, real y)
+  // Pop a note out where the pointer is, rather than where it already sits on
+  // the strip. The shell has to ask the compositor where that is, so this
+  // cannot be answered here.
+  signal popToPointerRequested(string id)
   // Published by whichever strip is active, so the note currently open on the
   // edge is visible to `ledge stats` and therefore assertable.
   property string openNoteId: ""

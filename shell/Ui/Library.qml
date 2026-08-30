@@ -43,6 +43,12 @@ FloatingWindow {
 
   // Return does whatever that row is mainly for: open it, put it back, or
   // rescue it from the trash.
+  function enterPressed(event) {
+    event.accepted = true
+    if (event.modifiers & Qt.ControlModifier) win.popSelection()
+    else win.activateSelection()
+  }
+
   function activateSelection() {
     if (!rows.length) return
     var row = rows[selected]
@@ -50,6 +56,17 @@ FloatingWindow {
     if (win.view === "archived") { win.runAction("unarchive", row); return }
     if (row.floating) return
     Bus.openRequested(row.id)
+    win.dismissRequested()
+  }
+
+  // Ctrl+Enter detaches the selected note onto the desktop instead of opening
+  // it on the strip. Reaching a note by keyboard was already possible; this is
+  // what makes getting it out of the strip possible too.
+  function popSelection() {
+    if (!rows.length) return
+    var row = rows[selected]
+    if (row.kind === "trash" || win.view === "archived" || row.floating) return
+    Bus.popToPointerRequested(row.id)
     win.dismissRequested()
   }
 
@@ -140,8 +157,8 @@ FloatingWindow {
         Keys.onEscapePressed: text.length ? text = "" : win.dismissRequested()
         Keys.onUpPressed: function (event) { win.moveSelection(-1); event.accepted = true }
         Keys.onDownPressed: function (event) { win.moveSelection(1); event.accepted = true }
-        Keys.onReturnPressed: function (event) { win.activateSelection(); event.accepted = true }
-        Keys.onEnterPressed: function (event) { win.activateSelection(); event.accepted = true }
+        Keys.onReturnPressed: function (event) { win.enterPressed(event) }
+        Keys.onEnterPressed: function (event) { win.enterPressed(event) }
         Keys.onTabPressed: function (event) {
           event.accepted = true
           var order = ["notes", "archived", "trash"]

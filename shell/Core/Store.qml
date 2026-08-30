@@ -766,6 +766,26 @@ QtObject {
     attachOps.exec(["xdg-open", attachPathFor(id) + "/" + file])
   }
 
+  // The note's text on the clipboard.
+  //
+  // Passed as one argument rather than several, so the line breaks survive:
+  // wl-copy joins multiple arguments with spaces. `--trim-newline` stops it
+  // adding one of its own on the end.
+  function copyText(text) {
+    if (!String(text).length) return
+    attachOps.exec(["wl-copy", "--trim-newline", "--", String(text)])
+  }
+
+  // A link in a note, handed to whatever the desktop uses for the web.
+  //
+  // The scheme is re-checked here rather than trusted from the caller. Note
+  // bodies are just files, and a file can be written by anything; `xdg-open`
+  // will happily act on schemes that are not a web page at all.
+  function openLink(url) {
+    if (!/^https?:\/\//.test(String(url))) return
+    attachOps.exec(["xdg-open", String(url)])
+  }
+
   property Process attachOps: Process {}
 
   property Timer attachSettle: Timer {

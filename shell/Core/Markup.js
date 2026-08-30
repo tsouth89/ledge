@@ -21,6 +21,62 @@ function escapeHtml(text) {
     .replace(/>/g, "&gt;")
 }
 
+// Where the bare URLs are in a string.
+//
+// One definition, used both to underline a link and to decide what a click
+// landed on, so what looks like a link and what actually opens can never
+// disagree.
+var URL_PATTERN = /https?:\/\/[^\s<>"']+/g
+
+function countChar(text, ch) {
+  var n = 0
+  for (var i = 0; i < text.length; i++) if (text.charAt(i) === ch) n++
+  return n
+}
+
+// Trailing punctuation is not part of the link. "see https://x.com." should not
+// open a URL with the full stop on the end of it.
+//
+// A closing bracket is the exception: it only counts as punctuation when the
+// URL did not open one itself, so `en.wikipedia.org/wiki/Foo_(bar)` keeps its
+// brackets while `(see https://x.com)` does not steal the sentence's.
+function trimUrl(url) {
+  var pairs = { ")": "(", "]": "[", "}": "{" }
+  while (url.length) {
+    var last = url.charAt(url.length - 1)
+    if (".,;:!?'\"".indexOf(last) >= 0) { url = url.slice(0, -1); continue }
+    if (pairs[last]) {
+      if (countChar(url, pairs[last]) >= countChar(url, last)) break
+      url = url.slice(0, -1)
+      continue
+    }
+    break
+  }
+  return url
+}
+
+function urlSpans(text) {
+  var out = []
+  var s = String(text || "")
+  var m
+  URL_PATTERN.lastIndex = 0
+  while ((m = URL_PATTERN.exec(s)) !== null) {
+    var url = trimUrl(m[0])
+    if (url.length) out.push({ start: m.index, end: m.index + url.length, url: url })
+  }
+  return out
+}
+
+// The URL covering a character index, or "" if the index is not on one. The
+// end is inclusive, so a click just past the last character still counts --
+// that is where the caret lands when you click the right half of a glyph.
+function urlAt(text, index) {
+  var spans = urlSpans(text)
+  for (var i = 0; i < spans.length; i++)
+    if (index >= spans[i].start && index <= spans[i].end) return spans[i].url
+  return ""
+}
+
 function dim(color, text) {
   return '<span style="color:' + color + '">' + text + "</span>"
 }
@@ -71,9 +127,17 @@ function styleLine(raw, palette) {
 
 function styleInline(line, palette) {
   // Bare URLs, before anything else can chew on the punctuation in them.
-  line = line.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
-    return '<span style="color:' + palette.link + '"><u>' + url + "</u></span>"
-  })
+  var spans = urlSpans(line)
+  if (spans.length) {
+    var woven = ""
+    var at = 0
+    for (var s = 0; s < spans.length; s++) {
+      woven += line.slice(at, spans[s].start)
+             + '<span style="color:' + palette.link + '"><u>' + spans[s].url + "</u></span>"
+      at = spans[s].end
+    }
+    line = woven + line.slice(at)
+  }
 
   // Markers must sit against a non-space character, so `2 * 3 * 4` and a lone
   // asterisk are left alone. Nothing matches across a line break.

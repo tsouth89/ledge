@@ -209,6 +209,10 @@ if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
   ipc attach "$ATT" >/dev/null; sleep 1.2
   is "clipboard image becomes an attachment" "$(find "$DATA/attachments/$ATT" -type f 2>/dev/null | wc -l)" "1"
 
+  is "a note's text can be copied out" "$(ipc copy "$ATT")" "ok"
+  sleep 0.4
+  is "and it is what lands on the clipboard" "$(wl-paste 2>/dev/null)" "note with a picture"
+
   printf 'plain text' | wl-copy; sleep 0.4
   ipc attach "$ATT" >/dev/null; sleep 1.2
   is "clipboard text does not" "$(find "$DATA/attachments/$ATT" -type f 2>/dev/null | wc -l)" "1"

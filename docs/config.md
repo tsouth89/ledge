@@ -12,6 +12,7 @@ the values below are the defaults.
 | `layer` | `"top"` | `"top"` sits under fullscreen windows. `"overlay"` draws over them, including over games |
 | `topMargin` | `0` | keep the strip clear of something at the top |
 | `bottomMargin` | `0` | |
+| `floatFollows` | `true` | a popped-out note follows you between workspaces. Turn off to leave each note on the workspace you put it on |
 
 ## The strip
 

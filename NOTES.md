@@ -359,41 +359,30 @@ leave before enter, and without the re-check the strip latches open.
 
 ## Next, roughly in order
 
-Reordered 2026-08-30 after an audit against "could Brandon use this as his only
-notes app". The Omarchy integration is in good shape and is not what is holding
-it back; the gaps are all in what you can do with a note once you have written
-one.
+Audited 2026-08-30 against "could Brandon use this as his only notes app". The
+Omarchy integration was already in good shape; the gaps were all in what you can
+do with a note once you have written one. Those five are done, and what is left
+is below.
 
-1. **Links are not clickable.** `Markup.js` already finds bare URLs and colours
-   them, but the styled layer is a `Text` in RichText mode painted *behind* a
-   transparent `TextEdit`, so every click lands on the editor and the link is
-   decoration. For a notes app that mostly collects links this is the biggest
-   single gap. The fix has to respect the same-width invariant: hit-test by
-   mapping the click through `editor.positionAt()` to a character index, look
-   up which URL span contains it, and `xdg-open` that. Ctrl-click, so ordinary
-   clicks still place the caret.
-2. **Every popped-out note is pinned to all workspaces.** `pin = true` is in
-   the base rule with no per-note say in it. Fine for a shopping list, wrong
-   for a note that belongs to one project. Wants a frontmatter flag applied as
-   a per-note rule; the per-note rule pipeline already exists and this is
-   mostly plumbing.
-3. **No keyboard route to pop a note out.** Reaching a note by keyboard is
-   already solved: `SUPER + SHIFT + L`, type, Enter, and the Library has
-   search, up/down, Enter and Escape wired up. But popping needs the pointer or
-   an id you have to look up. Cheapest fix is a modifier on the Library's Enter.
-4. **Reminders cannot be snoozed.** The notification carries one action,
-   `open=Open note`. Once it fires the reminder is cleared, so "not now" means
-   retyping the reminder. Add a snooze action alongside open.
-5. **No "copy note to clipboard".** Small, and it is the thing you most want to
-   do with a note after writing it.
-6. **Markup coverage.** Tables and fenced code blocks are deliberately absent:
+Done in that pass, for the record: clickable links, `Ctrl`+Return to detach a
+note from the Library, a snooze action on reminders, copy-to-clipboard as a note
+control and as `ledge copy`, and a `floatFollows` config switch for whether a
+popped note follows you between workspaces.
+
+1. **Per-note control of workspace following.** `floatFollows` is currently one
+   switch for every note. If keeping a project note on one workspace while the
+   shopping list follows you everywhere turns out to matter, this wants a
+   frontmatter field applied as a per-note rule. The per-note rule pipeline
+   already exists, so it is mostly plumbing. Deliberately not built on
+   speculation: the global switch may well be enough.
+2. **Markup coverage.** Tables and fenced code blocks are deliberately absent:
    both need block layout, and the same-width invariant forbids it. The invariant
    is what keeps the caret sitting on the right glyph, so this stays out until
    there is a design that does not break it. Leave unless it actually bites.
-7. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
+3. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
-8. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+4. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ### Omarchy fit, checked rather than assumed
 
@@ -418,10 +407,17 @@ place with `remove`/`insert` precisely to avoid that, and says so.
 ## Testing
 
 ```bash
+node test/markup.js    # no display needed; this one runs in CI
 ./test/smoke.sh
 ```
 
-Runs a second Ledge instance against a throwaway `LEDGE_DATA_DIR` and drives it
+`test/markup.js` covers `Core/Markup.js`, the one part of the app with no Qt in
+it and therefore the one part that can be checked without a compositor, a window
+or the keyboard. It guards the same-width invariant directly: style a string,
+strip the tags, and assert you get the input back. Add to it in preference to
+the smoke suite whenever the logic can be reached without a session.
+
+`smoke.sh` runs a second Ledge instance against a throwaway `LEDGE_DATA_DIR` and drives it
 over IPC, asserting on what lands on disk, and where the compositor is the thing
 that matters, on what Hyprland reports. It never touches real notes. The
 strip appears on screen for a few seconds while it runs, which is the point:

@@ -334,6 +334,7 @@ Item {
               act: "pop",
               tip: note.floating ? "Dock" : "Pop out" },
             { glyph: "\uf08d", act: "pin",     tip: "Pin" },
+            { glyph: "\uf0c5", act: "copy",    tip: "Copy text" },
             { glyph: "\uf187", act: "archive", tip: "Archive" },
             { glyph: "\uf1f8", act: "delete",  tip: "Delete" },
             { glyph: "\uf017", act: "remind",  tip: "Remind me" }
@@ -370,6 +371,11 @@ Item {
                   return
                 }
                 if (modelData.act === "pin") { Store.togglePinned(note.noteId); return }
+                if (modelData.act === "copy") {
+                  Store.copyText(note.body)
+                  actions.hint = "Copied"
+                  return
+                }
                 if (modelData.act === "archive") { Store.toggleArchived(note.noteId); note.dismissed(); return }
                 if (modelData.act === "remind") {
                   if (note.hasReminder) Store.setReminder(note.noteId, "")
@@ -655,6 +661,38 @@ Item {
           function onPasteFellThrough(id) {
             if (id === note.noteId && editor.activeFocus) editor.paste()
           }
+        }
+
+        // Links.
+        //
+        // The styled layer underneath colours and underlines URLs, but it is
+        // painted *behind* a transparent editor, so it can never be clicked:
+        // every press belongs to the editor. The link has to be found from the
+        // editor's own text instead, by turning the press back into a
+        // character index and asking which URL covers it.
+        //
+        // Ctrl held, so an ordinary click still just places the caret. This is
+        // the same chord an editor uses, and a note is an editor first.
+        function linkAtPoint(pt) {
+          return Markup.urlAt(editor.text, editor.positionAt(pt.x, pt.y))
+        }
+
+        TapHandler {
+          acceptedModifiers: Qt.ControlModifier
+          onTapped: function (point) {
+            var url = editor.linkAtPoint(point.position)
+            if (url.length) Store.openLink(url)
+          }
+        }
+
+        HoverHandler {
+          id: linkHover
+          acceptedModifiers: Qt.ControlModifier
+          property string under: ""
+          cursorShape: under.length ? Qt.PointingHandCursor : Qt.IBeamCursor
+          onPointChanged: linkHover.under = linkHover.hovered
+                                         ? editor.linkAtPoint(linkHover.point.position) : ""
+          onHoveredChanged: if (!hovered) linkHover.under = ""
         }
 
         // Rebind when this delegate is handed a different note, and pick up

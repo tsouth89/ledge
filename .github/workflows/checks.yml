@@ -23,6 +23,11 @@ jobs:
       - name: Shellcheck
         run: shellcheck bin/ledge test/smoke.sh test/packaging-covers-sources.sh
 
+      - name: Markup unit tests
+        # The only part of the app with no Qt in it, so the only part that can
+        # be checked without a compositor. Everything else needs a real session.
+        run: node test/markup.js
+
       - name: Desktop entry
         run: desktop-file-validate ledge.desktop
 

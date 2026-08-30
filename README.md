@@ -83,15 +83,21 @@ Reach for the edge. That is the whole interface.
 | drag a dash | reorder; neighbours slide aside to show where it lands |
 | the `+` at the end of the strip | new note |
 | `SUPER + N` | new sticky on the desktop, focused and ready to type; press it again to put it away |
+| `Ctrl` + click a link | open it in your browser |
 | `Esc` | save and fold away |
 | scroll the strip | when there are more notes than fit |
 
 Hovering along an already-open strip swaps straight to the next note rather than
 making you wait out the dwell again.
 
-An open note shows its controls the whole time it is open: pop out, pin,
-archive, delete, a reminder clock, and a swatch that opens the full colour
-palette. Hovering one names it.
+An open note shows its controls the whole time it is open: pop out, pin, copy
+the text, archive, delete, a reminder clock, and a swatch that opens the full
+colour palette. Hovering one names it.
+
+Links in a note are coloured and underlined, and `Ctrl` + click opens one. A
+plain click still just puts the caret where you clicked, because a note is an
+editor first. Trailing punctuation is left out of the link, so a sentence that
+ends on a URL opens the URL and not the full stop.
 Delete takes two clicks, and deleted notes go to `trash/` rather than being
 unlinked, so a misclick is recoverable twice over.
 
@@ -142,8 +148,12 @@ and titles, browse what you have archived, and go through the trash.
 
 It is keyboard-first. The search field takes focus on open, and you never have
 to leave it: arrows move through the results, Return does whatever that row is
-mainly for (open a note, unarchive one, rescue one from the trash), Tab cycles
-the three views, and Escape clears the search before it closes the window.
+mainly for (open a note, unarchive one, rescue one from the trash), `Ctrl` +
+Return detaches the selected note onto the desktop instead, Tab cycles the three
+views, and Escape clears the search before it closes the window.
+
+So the whole round trip is a keyboard one: `SUPER + SHIFT + L`, type enough of
+the note to find it, `Ctrl` + Return, and it is a sticky under your pointer.
 
 Deleting a note moves its file to `trash/` rather than unlinking it, and the
 trash view lists what is in there with how long ago it went, so a note you

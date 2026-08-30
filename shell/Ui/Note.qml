@@ -33,19 +33,10 @@ Item {
   signal editingRequested()
   signal popOutRequested()
   signal dockRequested()
-  signal floatDragged(real dx, real dy)
-  signal floatDragEnded()
-
-  // DragHandler reports cumulative translation; the store wants deltas. Shared
-  // so the band and the header behave identically.
-  property real dragLastX: 0
-  property real dragLastY: 0
-  function beginFloatDrag() { note.dragLastX = 0; note.dragLastY = 0 }
-  function stepFloatDrag(tx, ty) {
-    note.floatDragged(tx - note.dragLastX, ty - note.dragLastY)
-    note.dragLastX = tx
-    note.dragLastY = ty
-  }
+  // Moving and resizing a popped-out note are handed to the compositor rather
+  // than driven from here. See Float.qml for why.
+  signal floatMoveRequested()
+  signal floatResizeRequested(int edges)
   signal deleteRequested()
   signal dragStarted()
   signal dragMoved(real dy)
@@ -79,7 +70,11 @@ Item {
   Behavior on implicitWidth {
     enabled: !note.dragging
     SequentialAnimation {
-      PauseAnimation { duration: note.open || !note.peeked ? 0 : Math.min(note.index, 8) * 16 }
+      // index goes to -1 while a delegate is being torn down, and a negative
+      // duration is an error rather than a no-op.
+      PauseAnimation {
+        duration: note.open || !note.peeked ? 0 : Math.max(0, Math.min(note.index, 8)) * 16
+      }
       NumberAnimation {
         duration: note.growMs
         easing.type: note.open ? Easing.OutBack : Easing.OutCubic
@@ -163,12 +158,11 @@ Item {
       // Secondary grab handle. The header is the main one; the band is here
       // because it is the obvious thing to reach for on a note that is mostly
       // text.
-      DragHandler {
+      MouseArea {
+        anchors.fill: parent
         enabled: note.floating
-        target: null
         cursorShape: Qt.SizeAllCursor
-        onActiveChanged: active ? note.beginFloatDrag() : note.floatDragEnded()
-        onTranslationChanged: if (active) note.stepFloatDrag(translation.x, translation.y)
+        onPressed: note.floatMoveRequested()
       }
     }
   }
@@ -256,20 +250,15 @@ Item {
       // Extended up and out into the note's padding so the grab area is a
       // comfortable target rather than a hairline, and sitting behind the
       // controls so their clicks still land.
-      Item {
+      MouseArea {
         anchors.fill: parent
         anchors.topMargin: -note.pad
         anchors.leftMargin: -note.pad
         anchors.rightMargin: -note.pad
         z: -1
-
-        DragHandler {
-          enabled: note.floating
-          target: null
-          cursorShape: Qt.SizeAllCursor
-          onActiveChanged: active ? note.beginFloatDrag() : note.floatDragEnded()
-          onTranslationChanged: if (active) note.stepFloatDrag(translation.x, translation.y)
-        }
+        enabled: note.floating
+        cursorShape: Qt.SizeAllCursor
+        onPressed: note.floatMoveRequested()
       }
 
       property string hint: ""
@@ -436,7 +425,11 @@ Item {
         background: null
         padding: 0
 
-        focus: note.editing || note.floating
+        // Focus only when actually editing. A popped-out note is pinned and
+        // sits on every workspace; auto-focusing its editor just because it is
+        // floating means a note parked on the desktop quietly swallows
+        // keystrokes meant for whatever you were really typing into.
+        focus: note.editing
         onActiveFocusChanged: if (activeFocus) note.editingRequested()
 
         Keys.onEscapePressed: {
@@ -477,6 +470,39 @@ Item {
             editor.text = text.slice(0, lineStart) + updated + text.slice(lineEnd)
             editor.cursorPosition = caret
           }
+        }
+      }
+    }
+  }
+
+  // Resize grip. Only meaningful once detached; docked notes are sized by the
+  // strip.
+  MouseArea {
+    visible: note.floating
+    enabled: note.floating
+    width: 16
+    height: 16
+    anchors.right: note.bandRight ? undefined : parent.right
+    anchors.left: note.bandRight ? parent.left : undefined
+    anchors.bottom: parent.bottom
+    cursorShape: note.bandRight ? Qt.SizeBDiagCursor : Qt.SizeFDiagCursor
+    onPressed: note.floatResizeRequested(note.bandRight ? Qt.BottomEdge | Qt.LeftEdge
+                                                        : Qt.BottomEdge | Qt.RightEdge)
+
+    Canvas {
+      anchors.fill: parent
+      anchors.margins: 4
+      onPaint: {
+        var ctx = getContext("2d")
+        ctx.reset()
+        ctx.strokeStyle = Theme.withAlpha(note.ink, 0.35)
+        ctx.lineWidth = 1
+        for (var i = 0; i < 3; i++) {
+          var o = i * 3
+          ctx.beginPath()
+          ctx.moveTo(width - o, height)
+          ctx.lineTo(width, height - o)
+          ctx.stroke()
         }
       }
     }

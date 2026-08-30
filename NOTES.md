@@ -107,18 +107,38 @@ written to the new note's id. This actually corrupted a note, concatenating one
 note's keystrokes onto another's body. The load is now explicit, one-way, and
 suppressed during the sync. Do not "simplify" it back into a binding.
 
-**One full-screen surface per floating note per output, not one small surface
-repositioned.** A layer surface moved by changing its margins needs a compositor
-reconfigure per frame of a drag. Full-screen click-through surfaces with the
-input region masked to the note mean dragging is a plain x/y change in a surface
-that never moves.
+**Popped-out notes are toplevel windows, not layer surfaces.** This was tried
+the other way first and it was wrong twice over. A layer surface belongs to one
+output and cannot span two, so cross-monitor floats needed one full-screen
+click-through surface per note *per monitor* -- 14 MB of buffers per note on a
+two-monitor desk versus 0.27 MB now -- and dragging still broke, because the
+pointer grab belongs to the surface the press landed on, so the note stuck
+halfway across the seam. `FloatingWindow` + `startSystemMove()` hands the drag to
+the compositor, which is whose job it actually is, and `startSystemResize()`
+gives resizing for free. Do not "optimise" this back to layer-shell.
 
-**Float positions are global compositor coordinates, not screen-local.** Each
-(note x output) surface draws the note at global-minus-its-own-origin and maps
-itself only when the note overlaps it. That is what makes a drag across a
-monitor seam continuous: mid-crossing both surfaces are mapped and each draws
-its half. Screen-local coordinates cannot express this without teleporting the
-note at the boundary.
+**`hyprctl keyword` does not work under the Lua config parser.** It errors with
+"keyword can't work with non-legacy parsers. Use eval." Rules go through
+`hyprctl eval`, which wraps its argument in `return ...` and therefore takes a
+single expression -- multiple rules have to be smuggled in as
+`(function() ... end)()`.
+
+**The eval chunk is Lua source, so backslashes must be doubled.** A single `\-`
+is an invalid Lua escape and the *entire chunk* is rejected, silently taking
+every rule with it. The visible symptom is "popped-out notes are tiled again",
+several layers away from the cause. Hyphens are not escaped at all: `\-` is not
+valid Lua and a hyphen outside a character class is already literal.
+
+**A window rule only applies to a window that has not mapped yet.** Nothing is
+added to the float table until its placement rule has landed, and rule
+application is gated on a `Store.floatsReady` *property* rather than a signal --
+a singleton's file load can finish before shell.qml exists to connect to it, and
+that race showed up as every note being tiled.
+
+**Never auto-focus a floating note's editor.** Popped-out notes are pinned and
+sit on every workspace; focusing the editor because the note is floating means
+it quietly eats keystrokes meant for whatever you were actually typing into.
+Observed for real: a note picked up a stray character this way.
 
 **`hideDelay` is load-bearing.** Crossing the gap between a dash and the note it
 became reads as a pointer leave. Without the grace period the note snaps shut

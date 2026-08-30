@@ -28,19 +28,109 @@ ShellRoot {
     }
   }
 
-  // Popped-out notes: one surface per floating note per output. Each surface
-  // decides for itself whether the note currently overlaps it, so a note being
-  // dragged across a seam is drawn by both and never jumps.
-  readonly property var floatTargets: {
-    var out = []
-    for (var i = 0; i < Store.floatIds.length; i++)
-      for (var j = 0; j < Quickshell.screens.length; j++)
-        out.push({ id: Store.floatIds[i], screen: Quickshell.screens[j] })
-    return out
+  // ------------------------------------------------------- popped-out notes
+  //
+  // A popped-out note is a real toplevel, which means the compositor decides
+  // where it opens and whether it tiles. Hyprland is told how to treat them
+  // through window rules, and a rule only applies to a window that has not
+  // mapped yet -- so nothing is added to the float table until its rule has
+  // landed. `hyprctl keyword` is unavailable under the Lua config parser, so
+  // this goes through `hyprctl eval`.
+
+  property bool rulesReady: false
+
+  // Escape regex metacharacters for a Hyprland rule.
+  //
+  // The replacement emits *two* backslashes because this string is Lua source:
+  // Lua turns `\\x` back into `\x`, which is what the regex engine then sees. A
+  // single backslash would reach Lua as an invalid escape and kill the whole
+  // chunk. Hyphens are deliberately not escaped -- `\-` is not valid Lua, and a
+  // hyphen outside a character class is already literal.
+  function reEscape(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&")
+  }
+
+  function noteTitleRe(id) { return "^(ledge-note:" + shell.reEscape(id) + ")$" }
+
+  function placementLua(id, x, y, w, h) {
+    return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
+         + ', move = { ' + Math.round(x) + ', ' + Math.round(y) + ' }'
+         + ', size = { ' + Math.round(w) + ', ' + Math.round(h) + ' } })'
+  }
+
+  // hyprctl eval wraps its argument in `return ...`, so several statements have
+  // to be smuggled in as one expression.
+  function evalChunk(statements) {
+    return "(function() " + statements.join(" ") + " end)()"
+  }
+
+  readonly property string baseRuleLua:
+    'hl.window_rule({ match = { title = "^(ledge-note:.*)$" }'
+    + ', tag = "-default-opacity"'
+    + ', float = true, pin = true, no_initial_focus = true'
+    + ', no_blur = true, no_shadow = true, no_dim = true'
+    + ', border_size = 0, rounding = 0, opacity = "1 1" })'
+
+  Process { id: ruleProc }
+
+  // Startup: the base rule, plus a placement rule for every note that was
+  // already floating, before any of their windows are allowed to exist.
+  Process {
+    id: setupProc
+    stdout: StdioCollector {
+      // A malformed chunk is rejected wholesale and every rule in it is lost,
+      // which shows up much later as popped-out notes being tiled. Say so now.
+      onStreamFinished: if (String(text).indexOf("error") >= 0)
+        console.warn("ledge: window rules rejected by Hyprland:", text)
+    }
+    onExited: shell.rulesReady = true
+  }
+
+  property bool rulesRequested: false
+
+  // Gated on a property rather than a signal. The store's file load can finish
+  // before this component exists, in which case a signal handler attached here
+  // would never fire and no rules would ever be applied -- which shows up as
+  // popped-out notes being tiled by the compositor.
+  function applyStartupRules() {
+    if (shell.rulesRequested || !Store.floatsReady) return
+    shell.rulesRequested = true
+    var lines = [shell.baseRuleLua]
+    for (var id in Store.floats) {
+      var f = Store.floats[id]
+      lines.push(shell.placementLua(id, f.x, f.y,
+                                    f.w || Config.cardWidth, f.h || 200))
+    }
+    setupProc.command = ["hyprctl", "eval", shell.evalChunk(lines)]
+    setupProc.running = true
+  }
+
+  Component.onCompleted: shell.applyStartupRules()
+
+  Connections {
+    target: Store
+    function onFloatsReadyChanged() { shell.applyStartupRules() }
+  }
+
+  // Popping out: place first, then float, so the window never flashes at
+  // whatever position Hyprland would have chosen for it.
+  Connections {
+    target: Bus
+    function onPopRequested(id, x, y) {
+      if (Store.isFloating(id)) return
+      var w = Config.cardWidth
+      var h = 200
+      ruleProc.exited.connect(function once() {
+        ruleProc.exited.disconnect(once)
+        Store.setFloating(id, x, y, w, h)
+      })
+      ruleProc.command = ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, x, y, w, h)])]
+      ruleProc.running = true
+    }
   }
 
   Variants {
-    model: shell.floatTargets
+    model: shell.rulesReady ? Store.floatIds : []
     delegate: Float {}
   }
 

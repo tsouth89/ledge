@@ -69,18 +69,21 @@ thinking better of it, and pressing it again leaves nothing behind.
 
 ### Popping a note out
 
-Notes do not have to stay on the edge. Pop one out and it detaches to float
-wherever you want it. Drag it by its header strip or its colour band. It leaves
-the strip while it is out, and the dock control sends it back.
+Notes do not have to stay on the edge. Pop one out and it detaches to sit
+anywhere on the desktop. Drag it by its header strip or its colour band, resize
+it from the grip in its corner, and dock it back with one control. It leaves the
+strip while it is out.
 
-Floats live in global screen coordinates, so dragging one from one monitor to
-the next is a single continuous movement rather than a jump at the seam. A note
-straddling two monitors is simply drawn by both. Positions persist in
-`floats.json`, and are clamped so a note can hang off an edge but never far
-enough that the header you drag it by becomes unreachable.
+Dragging a popped-out note between monitors is handed to the compositor, the
+same way a title bar does it, so crossing outputs and spanning the seam behave
+exactly like every other window on your desktop. Position and size persist in
+`floats.json`.
 
-A floating note is still a layer surface, not a window: no taskbar entry, no
-tiling, no focus stealing.
+Popped-out notes are pinned, borderless, and do not take focus when they appear,
+so one parked on your desktop follows you between workspaces without ever
+catching a keystroke meant for something else. Ledge applies the Hyprland rules
+for this itself; see [docs/hyprland.md](docs/hyprland.md) if you want to know
+exactly what it sets and why.
 
 ## Command line
 

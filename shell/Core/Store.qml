@@ -58,12 +58,27 @@ QtObject {
 
   function floatState(id) { return root.floats[id] || null }
 
-  function setFloating(id, x, y) {
+  function setFloating(id, x, y, w, h) {
     var f = JSON.parse(JSON.stringify(root.floats))
-    f[id] = { x: Math.round(x), y: Math.round(y) }
+    f[id] = {
+      x: Math.round(x),
+      y: Math.round(y),
+      w: Math.round(w || Config.cardWidth),
+      h: Math.round(h || 180)
+    }
     root.floats = f
     root.floatIds = Object.keys(f)
     persistFloats()
+  }
+
+  function setFloatSize(id, w, h) {
+    if (!isFloating(id)) return
+    var f = JSON.parse(JSON.stringify(root.floats))
+    if (f[id].w === Math.round(w) && f[id].h === Math.round(h)) return
+    f[id].w = Math.round(w)
+    f[id].h = Math.round(h)
+    root.floats = f
+    floatSaveTimer.restart()
   }
 
   // Bounding box of every connected output, in global coordinates. A note is
@@ -125,6 +140,11 @@ QtObject {
     interval: 350
     onTriggered: root.persistFloats()
   }
+
+  // Set once floats.json has been read (or found missing). Consumers gate on
+  // this rather than on a one-shot signal, because a singleton's file load can
+  // complete before anything has had a chance to connect to it.
+  property bool floatsReady: false
 
   signal noteAdded(string id)
   signal noteRemoved(string id)
@@ -494,9 +514,10 @@ QtObject {
         root.floats = ({})
       }
       root.floatIds = Object.keys(root.floats)
+      root.floatsReady = true
     }
     onFileChanged: reload()
-    onLoadFailed: { root.floats = ({}); root.floatIds = [] }
+    onLoadFailed: { root.floats = ({}); root.floatIds = []; root.floatsReady = true }
   }
 
   property FileView orderFile: FileView {

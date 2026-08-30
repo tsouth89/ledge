@@ -354,9 +354,9 @@ PanelWindow {
                 var localX = win.onLeft
                   ? Config.tabPeek + 40
                   : win.screen.width - Config.cardWidth - Config.tabPeek - 40
-                Store.setFloating(id,
-                                  win.screen.x + Math.max(20, localX),
-                                  win.screen.y + Math.max(20, top))
+                Bus.popRequested(id,
+                                 win.screen.x + Math.max(20, localX),
+                                 win.screen.y + Math.max(20, top))
                 win.closeNow()
               }
 

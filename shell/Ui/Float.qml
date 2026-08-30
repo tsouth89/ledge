@@ -1,56 +1,60 @@
 import QtQuick
 import Quickshell
-import Quickshell.Wayland
 import qs.Core
 
-// A popped-out note, on one monitor.
+// A popped-out note.
 //
-// There is one of these per (floating note x monitor). Positions are stored in
-// global compositor coordinates and each surface draws the note at
-// global-minus-its-own-origin, so dragging a note across a monitor seam is one
-// continuous movement: the note is briefly drawn by both surfaces, each showing
-// its own half, and nothing teleports.
+// This is an ordinary toplevel window, not a layer surface, and that is a
+// deliberate reversal of how the strip works.
 //
-// Each surface is full-screen and click-through, with the input region cut down
-// to the note. The alternative -- a small surface anchored top-left and
-// repositioned by changing its margins -- means a compositor reconfigure on
-// every frame of a drag, which is exactly when you least want one. Here the
-// drag is a plain x/y change inside a surface that never moves or resizes.
-PanelWindow {
+// wlr-layer-shell surfaces belong to exactly one output and cannot span two.
+// Making a detached note work across monitors on top of layer-shell means one
+// surface per note *per output*, each full-screen and click-through so the note
+// can sit anywhere on it. That costs a transparent full-screen buffer per
+// monitor per note, and worse, it breaks dragging: the pointer grab belongs to
+// the surface the press landed on, so the moment the cursor crosses onto
+// another output the drag dies and the note stops halfway across the seam.
+//
+// A toplevel has none of those problems, because moving windows between
+// monitors is the compositor's job. `startSystemMove` hands the drag straight
+// to it -- the same request a title bar uses -- so crossing outputs, spanning
+// the seam, and snapping all behave exactly like every other window, at the
+// cost of one small window-sized buffer instead of N full-screen ones.
+// `startSystemResize` gets us resizing for the same price.
+//
+// The trade is that a toplevel is a window, and would tile and take focus
+// without help. See docs/hyprland.md for the rules that make it behave like the
+// desktop object it is; Ledge applies them itself at startup.
+FloatingWindow {
   id: win
 
   required property var modelData
-  readonly property string noteId: modelData ? String(modelData.id) : ""
-
-  screen: modelData ? modelData.screen : null
+  readonly property string noteId: String(modelData)
 
   readonly property var state: Store.floatState(noteId)
   readonly property var note: Store.get(noteId)
 
-  readonly property real originX: screen ? screen.x : 0
-  readonly property real originY: screen ? screen.y : 0
+  visible: state !== null && note !== null
 
-  // Only map where the note actually overlaps this output, so the idle cost of
-  // a float on a two-monitor desk is one surface, not two.
-  readonly property bool overlaps: {
-    if (!state || !screen) return false
-    var nx = state.x, ny = state.y
-    var nw = Config.cardWidth, nh = noteItem.height
-    return nx < originX + screen.width && nx + nw > originX
-        && ny < originY + screen.height && ny + nh > originY
-  }
+  // Matched by the window rules. Keep it stable and distinctive: `class` is
+  // shared with every other Quickshell instance on the system, including the
+  // Omarchy shell itself, so rules key off the title instead.
+  title: "ledge-note:" + noteId
 
-  visible: state !== null && note !== null && overlaps
-
-  WlrLayershell.namespace: "ledge-float"
-  WlrLayershell.layer: Config.layer === "overlay" ? WlrLayer.Overlay : WlrLayer.Top
-  WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
-  exclusionMode: ExclusionMode.Ignore
   color: "transparent"
 
-  anchors { top: true; bottom: true; left: true; right: true }
+  // Room around the note for our own drop shadow. The window itself is
+  // borderless and unrounded by rule, so this padding is the only thing
+  // separating the note from the windows behind it.
+  readonly property int shadowPad: 14
 
-  mask: Region { item: noteItem }
+  minimumSize: Qt.size(180 + shadowPad * 2, 90 + shadowPad * 2)
+
+  // The requested size. Quickshell drives toplevel geometry from the implicit
+  // size; the compositor is free to override it, and does once the resize grip
+  // is used.
+  implicitWidth: (state && state.w ? state.w : Config.cardWidth) + shadowPad * 2
+  implicitHeight: (state && state.h ? state.h : 200) + shadowPad * 2
 
   Item {
     id: content
@@ -58,6 +62,8 @@ PanelWindow {
 
     Note {
       id: noteItem
+      anchors.fill: parent
+      anchors.margins: win.shadowPad
 
       noteId: win.noteId
       colorKey: win.note ? win.note.color : Theme.swatchKeys[0]
@@ -70,16 +76,8 @@ PanelWindow {
       open: true
       editing: false
 
-      width: Config.cardWidth
-
-      // Global position, expressed relative to this monitor's origin.
-      x: (win.state ? win.state.x : 0) - win.originX
-      y: (win.state ? win.state.y : 0) - win.originY
-
-      onFloatDragged: function (dx, dy) {
-        Store.nudgeFloat(win.noteId, dx, dy, height)
-      }
-      onFloatDragEnded: Store.persistFloats()
+      onFloatMoveRequested: win.startSystemMove()
+      onFloatResizeRequested: function (edges) { win.startSystemResize(edges) }
 
       onDockRequested: Store.unfloat(win.noteId)
       onDismissed: Store.unfloat(win.noteId)
@@ -88,6 +86,36 @@ PanelWindow {
         Store.unfloat(id)
         Store.remove(id)
       }
+    }
+  }
+
+  // The compositor owns geometry now, so remember the size it settles on. There
+  // is no equivalent for position: a Wayland client is never told where it is,
+  // so placement is restored through the compositor instead (see Placement in
+  // shell.qml).
+  onWidthChanged: if (settled) sizeSaver.restart()
+  onHeightChanged: if (settled) sizeSaver.restart()
+
+  // Nothing is persisted until the window has stopped being resized *at* us.
+  // Without this, a window the compositor tiled before its rules landed writes
+  // its tiled geometry straight into floats.json and the note is wrong forever
+  // after.
+  property bool settled: false
+  Timer {
+    running: true
+    interval: 1200
+    onTriggered: win.settled = true
+  }
+
+  Timer {
+    id: sizeSaver
+    interval: 400
+    onTriggered: {
+      if (!win.state) return
+      var w = win.width - win.shadowPad * 2
+      var h = win.height - win.shadowPad * 2
+      if (w < 180 || h < 90 || w > 900 || h > 1200) return
+      Store.setFloatSize(win.noteId, w, h)
     }
   }
 }

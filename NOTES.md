@@ -184,13 +184,23 @@ FloatingWindow silently did nothing and warned at startup: a Window is not an
 Item. Key handling belongs on a focused Item inside it, which for the library is
 the search field.
 
-**Do not drive this with synthetic input while the user is at the machine.**
-`wtype` goes to whatever holds focus, and moving the pointer to "get it out of
-the way" hands focus to whatever is under it. Twice this sent keystrokes into
-the user's browser. Related: Qt only reports `activeFocus` while the window
-itself is active, so a screenshot of focus styling proves nothing unless the app
-is genuinely the focused window -- which cost a round of chasing a focus bug
-that did not exist and briefly regressing working code.
+**Send test keystrokes to a named window, never to whatever has focus.**
+`wtype` goes wherever focus happens to be, and warping the pointer to "get it
+out of the way" hands focus to whatever sits under it -- twice this typed into
+the user's browser. Hyprland can target a window directly, which cannot leak:
+
+```bash
+hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "title:ledge-library" }))'
+hyprctl eval 'hl.dispatch(hl.dsp.send_shortcut({ mods = "", key = "Down", window = "title:ledge-library" }))'
+```
+
+Note `hl.dsp.cursor.move` warps the pointer without re-running focus-follows-
+mouse, so it does *not* focus what it lands on; use `hl.dsp.focus` for that.
+
+Related trap: Qt only reports `activeFocus` while the window itself is active,
+so a screenshot of focus styling proves nothing unless the app is genuinely
+focused. Missing that cost a round of chasing a focus bug that did not exist,
+and briefly regressing working code to "fix" it.
 
 **Pick text colour by measuring contrast, not by blending toward black.** Tab
 labels were a fixed 72% mix toward black, which reads fine on half the palette
@@ -297,6 +307,11 @@ the user rather than the author, all of them mechanically checkable.
 
 Not covered, because it needs a real pointer: hover-to-peek, drag reorder,
 dragging a float between monitors, and the resize grip.
+
+The All Notes keyboard path *is* verified, by targeting the window directly as
+above: arrows move the selection, Tab cycles the three views, typing filters and
+resets the selection, Escape clears the search before closing, and Return opens
+the selected note and dismisses the window.
 
 Every `monitor` mode has been exercised by hand on a two-output layout:
 `focused` follows focus, `all` maps one strip per output, and a named output

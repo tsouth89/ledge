@@ -256,12 +256,22 @@ leave before enter, and without the re-check the strip latches open.
 
 ## Next, roughly in order
 
-1. **Markup coverage** - tables and fenced code blocks are deliberately absent;
+1. **Library keyboard navigation.** The All Notes window is mouse-only: no
+   arrow keys to move through results, no Enter to open. The search field takes
+   focus but nothing else does.
+2. **Colour picking is a cycle, not a choice.** Clicking the swatch steps to the
+   next of eight. Fine for two notes, tedious for the one you want.
+3. **Reminder notifications are not actionable.** Clicking one should open the
+   note it came from; today it does nothing.
+4. **Markup coverage** - tables and fenced code blocks are deliberately absent;
    both need block layout, which the same-width invariant forbids. behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-2. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+5. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
+   anywhere, but popped-out notes place themselves with Hyprland window rules
+   and would float unplaced on Sway or niri. Untested either way.
+6. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 

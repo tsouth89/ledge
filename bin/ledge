@@ -28,7 +28,7 @@ start() {
   qs --path "$SHELL_DIR" --daemonize
   # The IPC target only registers once the config finishes loading.
   local i
-  for i in $(seq 1 40); do running && return 0; sleep 0.1; done
+  for _ in $(seq 1 40); do running && return 0; sleep 0.1; done
   echo "ledge: started but IPC did not come up" >&2
   return 1
 }
@@ -85,12 +85,16 @@ body_from() {
 }
 
 cmd=${1:-start}
-[[ $# -gt 0 ]] && shift || true
+if [[ $# -gt 0 ]]; then shift; fi
 
 case "$cmd" in
   start)   start ;;
-  stop)    running && qs kill --path "$SHELL_DIR" || echo "ledge: not running" ;;
-  restart) running && qs kill --path "$SHELL_DIR" >/dev/null 2>&1 || true; sleep 0.4; start ;;
+  stop)
+    if running; then qs kill --path "$SHELL_DIR"; else echo "ledge: not running"; fi ;;
+  restart)
+    if running; then qs kill --path "$SHELL_DIR" >/dev/null 2>&1 || true; fi
+    sleep 0.4
+    start ;;
   status)
     if running; then echo "running  (shell: $SHELL_DIR)"; else echo "stopped  (shell: $SHELL_DIR)"; fi ;;
   # Bare `ledge new` toggles: it opens a blank note, or closes the open one.

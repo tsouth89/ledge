@@ -17,6 +17,7 @@ ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m %s\n' "$1"; [[ -n ${2:-} ]] && printf '        %s\n' "$2"; fail=$((fail+1)); }
 is()   { if [[ "$2" == "$3" ]]; then ok "$1"; else bad "$1" "expected '$3', got '$2'"; fi; }
 
+# shellcheck disable=SC2317  # reached via trap, not by falling through
 cleanup() {
   [[ -n ${PID:-} ]] && kill "$PID" 2>/dev/null
   wait "$PID" 2>/dev/null
@@ -26,6 +27,11 @@ trap cleanup EXIT
 
 echo "ledge smoke test"
 echo "  data: $DATA"
+
+# Suppress the first-run welcome note for the main body of the suite, using the
+# same marker the app itself writes rather than a test-only switch. Seeding gets
+# its own instance further down.
+touch "$DATA/.seeded"
 
 LEDGE_DATA_DIR="$DATA" qs --path "$SHELL_DIR" >"$LOG" 2>&1 &
 PID=$!
@@ -61,13 +67,13 @@ is "frontmatter carries the id" "$(grep -c "^id: $ID\$" "$DATA/notes/$ID.md")" "
 is "body is intact" "$(sed -n '/^---$/,/^---$/!p' "$DATA/notes/$ID.md" | tr -d '\n')" "first notesecond line"
 
 # --- blank notes are never written -------------------------------------------
-BLANK=$(ipc create "")
+ipc create "" >/dev/null
 settle
 is "blank note is listed while open" "$(count)" "2"
-is "blank note is not on disk" "$(ls -1 "$DATA/notes" | wc -l)" "1"
+is "blank note is not on disk" "$(find "$DATA/notes" -name '*.md' | wc -l)" "1"
 ipc close >/dev/null; settle
 is "blank note is discarded on close" "$(count)" "1"
-is "discarding leaves no trash" "$(ls -1 "$DATA/trash" 2>/dev/null | wc -l)" "0"
+is "discarding leaves no trash" "$(find "$DATA/trash" -name '*.md' 2>/dev/null | wc -l)" "0"
 
 # --- rapid creates must not bleed into each other ----------------------------
 A=$(ipc create "alpha"); B=$(ipc create "beta"); C=$(ipc create "gamma")
@@ -90,11 +96,11 @@ settle
 # --- delete goes to trash, restore brings it back ----------------------------
 ipc remove "$B" >/dev/null; settle
 is "deleted note is gone from the list" "$(count)" "3"
-is "deleted note is in the trash" "$(ls -1 "$DATA/trash" | grep -c "$B")" "1"
+is "deleted note is in the trash" "$(find "$DATA/trash" -name "*$B*" | wc -l)" "1"
 ipc refreshTrash >/dev/null; sleep 0.5
 is "trash listing finds it" "$(ipc trash | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')" "1"
 is "trash listing recovers the title" "$(ipc trash | python3 -c 'import sys,json;print(json.load(sys.stdin)[0]["title"])')" "beta"
-TRASHED=$(ls -1 "$DATA/trash" | grep "$B")
+TRASHED=$(basename "$(find "$DATA/trash" -name "*$B*" | head -1)")
 ipc restore "$TRASHED" >/dev/null; sleep 1.2
 is "restored note is back" "$(count)" "4"
 
@@ -132,11 +138,11 @@ if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
     || convert -size 40x40 xc:teal "$DATA/probe.png" 2>/dev/null
   wl-copy --type image/png < "$DATA/probe.png"; sleep 0.4
   ipc attach "$ATT" >/dev/null; sleep 1.2
-  is "clipboard image becomes an attachment" "$(ls -1 "$DATA/attachments/$ATT" 2>/dev/null | wc -l)" "1"
+  is "clipboard image becomes an attachment" "$(find "$DATA/attachments/$ATT" -type f 2>/dev/null | wc -l)" "1"
 
   printf 'plain text' | wl-copy; sleep 0.4
   ipc attach "$ATT" >/dev/null; sleep 1.2
-  is "clipboard text does not" "$(ls -1 "$DATA/attachments/$ATT" 2>/dev/null | wc -l)" "1"
+  is "clipboard text does not" "$(find "$DATA/attachments/$ATT" -type f 2>/dev/null | wc -l)" "1"
 
   ipc remove "$ATT" >/dev/null; sleep 1.2
   is "deleting a note takes its attachments" "$([[ -d $DATA/attachments/$ATT ]] && echo present || echo gone)" "gone"
@@ -144,6 +150,42 @@ if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
 else
   echo "  skip attachments (set LEDGE_TEST_CLIPBOARD=1 to include; it overwrites your clipboard)"
 fi
+
+# --- first run ----------------------------------------------------------------
+# A separate instance against a genuinely untouched directory, since the suite
+# above deliberately starts from a seeded marker.
+FRESH=$(mktemp -d /tmp/ledge-fresh.XXXXXX)
+LEDGE_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >"$FRESH/log" 2>&1 &
+FPID=$!
+for _ in $(seq 1 60); do
+  qs ipc --pid "$FPID" call ledge ping >/dev/null 2>&1 && break
+  sleep 0.2
+done
+sleep 1.2
+fresh_titles=$(qs ipc --pid "$FPID" call ledge list 2>/dev/null \
+  | python3 -c 'import sys,json;print(",".join(n["title"] for n in json.load(sys.stdin)))')
+is "a fresh install seeds one welcome note" "$fresh_titles" "Welcome to Ledge"
+is "and records that it did" "$([[ -f $FRESH/.seeded ]] && echo yes)" "yes"
+
+# Deleting everything must not bring it back on the next start.
+for nid in $(qs ipc --pid "$FPID" call ledge list 2>/dev/null \
+             | python3 -c 'import sys,json
+for n in json.load(sys.stdin): print(n["id"])'); do
+  qs ipc --pid "$FPID" call ledge remove "$nid" >/dev/null 2>&1
+done
+sleep 1
+kill "$FPID" 2>/dev/null; wait "$FPID" 2>/dev/null
+LEDGE_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >>"$FRESH/log" 2>&1 &
+FPID=$!
+for _ in $(seq 1 60); do
+  qs ipc --pid "$FPID" call ledge ping >/dev/null 2>&1 && break
+  sleep 0.2
+done
+sleep 1.2
+is "and does not seed again once emptied" \
+   "$(qs ipc --pid "$FPID" call ledge list 2>/dev/null | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')" "0"
+kill "$FPID" 2>/dev/null; wait "$FPID" 2>/dev/null
+rm -rf "$FRESH"
 
 # --- the shell stayed healthy throughout --------------------------------------
 noise=$(grep -E "ERROR|Binding loop|is not a type|Cannot set" "$LOG" | grep -v portal | head -3)

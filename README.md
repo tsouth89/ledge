@@ -1,0 +1,158 @@
+# Ledge
+
+Sticky notes that live on the edge of your screen, for Hyprland.
+
+Notes rest as thin coloured dashes against one edge of the display. Reach toward
+them and the strip fans out to show its labels. Land on one and that dash *is*
+the note: it widens, grows to fit its text, and its colour retreats to a band
+down the edge. Nothing slides out from behind anything else. Move away and it
+folds back to a dash.
+
+Everything else on the surface is click-through, so the strip costs you nothing
+until you reach for it.
+
+![ledge](docs/ledge.png)
+
+## Why not just a window
+
+Ledge is a `wlr-layer-shell` surface, not a floating window. That means it is a
+desktop component in the same sense your bar is: it never appears in the window
+list, never takes focus you did not give it, is never tiled, and does not steal
+the pointer. The only parts of it that accept input are the strip itself and
+whichever note is currently open. The rest of the screen behaves as if it were
+not there.
+
+## Install
+
+```bash
+yay -S ledge          # once published
+systemctl --user enable --now ledge
+```
+
+From source:
+
+```bash
+git clone https://github.com/tsouth89/ledge
+cd ledge
+./bin/ledge start
+```
+
+Requires `quickshell` and a `wlr-layer-shell` compositor. Developed on Hyprland;
+Sway, river, niri and Wayfire should work but are untested.
+
+## Use
+
+Reach for the edge. That is the whole interface.
+
+| | |
+|---|---|
+| hover the strip | fans out, showing labels |
+| hover a note | it opens |
+| click | opens and puts the caret in the text |
+| drag a dash | reorder |
+| `Esc` | save and fold away |
+| scroll the strip | when there are more notes than fit |
+
+Hovering along an already-open strip swaps straight to the next note rather than
+making you wait out the dwell again.
+
+An open note shows its controls on hover: pin, archive, delete, and a swatch
+that cycles its colour. Deleted notes move to `trash/` rather than being
+unlinked, so a misclick is recoverable.
+
+## Command line
+
+```
+ledge start | stop | restart | status
+ledge new [text]        create a note and open it (reads stdin)
+ledge add [text]        append to the most recent note (reads stdin)
+ledge list              every note as JSON
+ledge open <id>         open one note for editing
+ledge rm <id>           move a note to the trash
+ledge peek              fan the strip open
+ledge close             collapse it
+```
+
+So this works:
+
+```bash
+dmesg | tail -20 | ledge new
+ledge add "call the vet at 3"
+```
+
+Bind it in Hyprland:
+
+```lua
+o.bind("SUPER SHIFT", "N", "exec", "ledge new")
+o.bind("SUPER SHIFT", "P", "exec", "ledge peek")
+```
+
+## Your notes are just files
+
+```
+~/.local/share/ledge/
+├── notes/<id>.md     one note per file, YAML frontmatter
+├── order             note ids, one per line, display order
+└── trash/            deleted notes
+```
+
+```markdown
+---
+id: mtfb6ns2-v3ak
+color: cyan
+created: 2026-08-30T04:27:57.026Z
+---
+vet appointment
+- [ ] thursday 3pm
+```
+
+Grep them, commit them, sync them, point Obsidian at them, edit them in Neovim
+while Ledge is running: the strip watches the directory and picks up outside
+edits live.
+
+Ordering is deliberately *not* in the frontmatter. Dragging a note to a new spot
+rewrites one small `order` file rather than touching every note below it, which
+keeps reorders out of the way in git and in any file-sync tool.
+
+Notes are plain text. There is no markdown rendering and no edit/preview mode,
+because a note you hover for half a second should not have modes. `- [ ]` is
+special-cased: click the box to tick it, and the file keeps exactly the
+characters you typed.
+
+## Theming
+
+Ledge reads the active Omarchy theme directly and recolours with it:
+
+```
+~/.local/state/omarchy/current/theme/colors.toml
+~/.local/state/omarchy/current/theme/shell.toml
+```
+
+`omarchy theme set <name>` repaints the notes with no restart.
+
+Note colours are *generated* rather than looked up, and this is deliberate.
+Reading eight swatches off a theme palette by name sounds right and fails in
+practice: a monochrome theme's `red`, `green` and `magenta` are all the same
+hue, so every note ends up the same colour. Osaka Jade's `bright_magenta` is
+`#75bbb3`, a teal. Instead Ledge takes the theme accent's hue, saturation and
+lightness and spreads eight swatches across an arc centred on it. Muted themes
+get muted notes, vivid themes get vivid ones, and the notes stay distinguishable
+from each other in every theme. Widen or narrow the arc with `swatchSpread`.
+
+## Configuration
+
+`~/.config/ledge/config.json`, hot-reloaded on save. Every key is optional.
+See [docs/config.md](docs/config.md).
+
+```json
+{
+  "edge": "right",
+  "monitor": "focused",
+  "cardWidth": 300,
+  "swatchSpread": 0.42
+}
+```
+
+## License
+
+MIT

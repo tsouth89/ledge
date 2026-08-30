@@ -1,0 +1,5 @@
+module qs.Core
+singleton Bus 1.0 Bus.qml
+singleton Config 1.0 Config.qml
+singleton Store 1.0 Store.qml
+singleton Theme 1.0 Theme.qml

@@ -1,0 +1,15 @@
+[Unit]
+Description=Ledge - sticky notes on the edge of the screen
+Documentation=https://github.com/tsouth89/ledge
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/qs --path /usr/share/ledge/shell
+Restart=on-failure
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

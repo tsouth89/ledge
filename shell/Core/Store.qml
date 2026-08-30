@@ -1,0 +1,391 @@
+pragma Singleton
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+
+// Notes on disk, and the model the UI binds to.
+//
+//   ~/.local/share/ledge/notes/<id>.md    one file per note, YAML frontmatter
+//   ~/.local/share/ledge/order            note ids, one per line, display order
+//   ~/.local/share/ledge/trash/           deleted notes, kept for undo
+//
+// Ordering lives outside the notes on purpose. Dragging a note to a new
+// position rewrites one small file instead of touching the frontmatter of
+// every note below it, which keeps reorders out of the way in git and in any
+// file-sync tool pointed at this directory.
+QtObject {
+  id: root
+
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string dataDir: home + "/.local/share/ledge"
+  readonly property string notesDir: dataDir + "/notes"
+  readonly property string trashDir: dataDir + "/trash"
+  readonly property string orderPath: dataDir + "/order"
+
+  readonly property ListModel notes: ListModel {}
+
+  property bool ready: false
+  property var order: []
+
+  // Visible-note count, kept as plain state rather than derived in the view.
+  // Binding a window's `visible` to a child ListView's count makes the child's
+  // existence depend on the window it lives in, which is a loop.
+  property int liveCount: 0
+
+  function recount() {
+    var c = 0
+    for (var i = 0; i < notes.count; i++) if (!notes.get(i).archived) c++
+    root.liveCount = c
+  }
+
+  signal noteAdded(string id)
+  signal noteRemoved(string id)
+
+  // ------------------------------------------------------------- lookup
+
+  function indexOfId(id) {
+    for (var i = 0; i < notes.count; i++)
+      if (notes.get(i).noteId === id) return i
+    return -1
+  }
+
+  function get(id) {
+    var i = indexOfId(id)
+    return i < 0 ? null : notes.get(i)
+  }
+
+  // Visible notes, in display order, newest-unordered last.
+  function liveIds() {
+    var out = []
+    for (var i = 0; i < notes.count; i++) {
+      var n = notes.get(i)
+      if (!n.archived) out.push(n.noteId)
+    }
+    return out
+  }
+
+  // --------------------------------------------------------- id + title
+
+  // Sortable, collision-resistant, and readable in a filename. Timestamp in
+  // base36 keeps files in creation order in a plain `ls`.
+  function newId() {
+    var stamp = Date.now().toString(36)
+    var salt = Math.floor(Math.random() * 1679616).toString(36)
+    while (salt.length < 4) salt = "0" + salt
+    return stamp + "-" + salt
+  }
+
+  // The edge tab's label. Sticky notes do not have a title field; the first
+  // line is the title, the way it works on paper. An explicit frontmatter
+  // `title:` wins when the first line makes a poor label.
+  function deriveTitle(body, explicit) {
+    if (explicit && explicit.length) return explicit
+    var lines = String(body || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].replace(/^\s*[#>\-*]+\s*/, "").replace(/^\s+|\s+$/g, "")
+      line = line.replace(/^\[[ xX]\]\s*/, "")
+      if (line.length) return line
+    }
+    return "Untitled"
+  }
+
+  // ------------------------------------------------------- frontmatter
+
+  function parseNote(text) {
+    var raw = String(text || "")
+    var meta = {}
+    var body = raw
+
+    var match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+    if (match) {
+      body = match[2]
+      var lines = match[1].split("\n")
+      for (var i = 0; i < lines.length; i++) {
+        var colon = lines[i].indexOf(":")
+        if (colon < 0) continue
+        var key = lines[i].slice(0, colon).replace(/^\s+|\s+$/g, "")
+        var val = lines[i].slice(colon + 1).replace(/^\s+|\s+$/g, "")
+        val = val.replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1")
+        meta[key] = val
+      }
+    }
+    return { meta: meta, body: body }
+  }
+
+  function serializeNote(n) {
+    var lines = ["---"]
+    lines.push("id: " + n.noteId)
+    lines.push("color: " + n.color)
+    if (n.title && n.title.length) lines.push("title: " + JSON.stringify(n.title))
+    if (n.archived) lines.push("archived: true")
+    if (n.pinned) lines.push("pinned: true")
+    if (n.styled === false) lines.push("styled: false")
+    if (n.reminder && n.reminder.length) lines.push("reminder: " + n.reminder)
+    if (n.created && n.created.length) lines.push("created: " + n.created)
+    lines.push("---")
+    var body = String(n.body || "")
+    // Keep the file POSIX-clean so `cat`, `grep` and git all behave.
+    if (body.length && body.charAt(body.length - 1) !== "\n") body += "\n"
+    return lines.join("\n") + "\n" + body
+  }
+
+  function truthy(v) {
+    return v === true || v === "true" || v === "yes" || v === "1"
+  }
+
+  // ---------------------------------------------------------- mutation
+
+  function create(body, color) {
+    var id = root.newId()
+    notes.append({
+      noteId: id,
+      file: root.notesDir + "/" + id + ".md",
+      color: color || Theme.swatchKeys[notes.count % Theme.swatchKeys.length],
+      title: "",
+      body: body || "",
+      archived: false,
+      pinned: false,
+      styled: true,
+      reminder: "",
+      created: new Date().toISOString(),
+      loaded: true
+    })
+    root.order = root.liveIds()
+    persistOrder()
+    root.noteAdded(id)
+    recount()
+    save(id)
+    return id
+  }
+
+  function update(id, fields) {
+    var i = indexOfId(id)
+    if (i < 0) return
+    notes.set(i, fields)
+    save(id)
+  }
+
+  function setBody(id, body) {
+    var i = indexOfId(id)
+    if (i < 0 || notes.get(i).body === body) return
+    notes.setProperty(i, "body", body)
+    saveDebounced(id)
+  }
+
+  function setColor(id, color) {
+    update(id, { color: Theme.swatchKey(color) })
+  }
+
+  function toggleArchived(id) {
+    var i = indexOfId(id)
+    if (i < 0) return
+    notes.setProperty(i, "archived", !notes.get(i).archived)
+    root.order = root.liveIds()
+    persistOrder()
+    recount()
+    save(id)
+  }
+
+  function togglePinned(id) {
+    var i = indexOfId(id)
+    if (i < 0) return
+    notes.setProperty(i, "pinned", !notes.get(i).pinned)
+    save(id)
+  }
+
+  // Delete moves the file to trash/ rather than unlinking it. Accidental
+  // deletion is the single most common complaint about every sticky notes
+  // app ever shipped, so the bytes stay recoverable until the user empties it.
+  function remove(id) {
+    var i = indexOfId(id)
+    if (i < 0) return
+    var file = notes.get(i).file
+    notes.remove(i)
+    root.order = root.liveIds()
+    persistOrder()
+    recount()
+    trashProc.exec(["bash", "-c",
+      'mkdir -p "$1" && mv -f "$2" "$1/$(date +%s)-$(basename "$2")"',
+      "_", root.trashDir, file])
+    root.noteRemoved(id)
+  }
+
+  function move(fromIndex, toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
+    if (fromIndex >= notes.count || toIndex >= notes.count) return
+    notes.move(fromIndex, toIndex, 1)
+    root.order = root.liveIds()
+    persistOrder()
+  }
+
+  // ------------------------------------------------------------ writing
+
+  property var pendingSaves: ({})
+
+  function saveDebounced(id) {
+    var p = root.pendingSaves
+    p[id] = true
+    root.pendingSaves = p
+    saveTimer.restart()
+  }
+
+  function flushPending() {
+    var p = root.pendingSaves
+    for (var id in p) save(id)
+    root.pendingSaves = ({})
+  }
+
+  function save(id) {
+    var n = get(id)
+    if (!n || !n.loaded) return
+    var view = viewFor(id)
+    if (view) view.setText(serializeNote(n))
+  }
+
+  function persistOrder() {
+    orderFile.setText(root.order.join("\n") + "\n")
+  }
+
+  property Timer saveTimer: Timer {
+    interval: 400
+    onTriggered: root.flushPending()
+  }
+
+  // ------------------------------------------------------------ loading
+
+  function viewFor(id) {
+    for (var i = 0; i < noteViews.count; i++) {
+      var v = noteViews.objectAt(i)
+      if (v && v.noteId === id) return v
+    }
+    return null
+  }
+
+  function applyOrder() {
+    if (!root.order.length) return
+    var target = 0
+    for (var i = 0; i < root.order.length; i++) {
+      var at = indexOfId(root.order[i])
+      if (at < 0) continue
+      if (at !== target) notes.move(at, target, 1)
+      target++
+    }
+  }
+
+  // Reconcile the model against what is actually on disk. Adds arrive as
+  // placeholder rows whose FileView fills in the content; removals drop rows
+  // whose file vanished from under us (an external delete, or a sync tool).
+  function syncFiles(listing) {
+    var seen = {}
+    var files = String(listing || "").split("\n")
+
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i].replace(/^\s+|\s+$/g, "")
+      if (!file.length || !file.match(/\.md$/)) continue
+      var id = file.replace(/\.md$/, "")
+      seen[id] = true
+      if (indexOfId(id) >= 0) continue
+      notes.append({
+        noteId: id,
+        file: root.notesDir + "/" + file,
+        color: Theme.swatchKeys[0],
+        title: "",
+        body: "",
+        archived: false,
+        pinned: false,
+        styled: true,
+        reminder: "",
+        created: "",
+        loaded: false
+      })
+    }
+
+    for (var j = notes.count - 1; j >= 0; j--) {
+      var n = notes.get(j)
+      if (!seen[n.noteId] && n.loaded) notes.remove(j)
+    }
+
+    applyOrder()
+    recount()
+    root.ready = true
+  }
+
+  function ingest(id, text) {
+    var i = indexOfId(id)
+    if (i < 0) return
+    var parsed = parseNote(text)
+    var m = parsed.meta
+    notes.set(i, {
+      noteId: id,
+      file: root.notesDir + "/" + id + ".md",
+      color: Theme.swatchKey(m["color"]),
+      title: m["title"] || "",
+      body: parsed.body,
+      archived: truthy(m["archived"]),
+      pinned: truthy(m["pinned"]),
+      styled: m["styled"] === undefined ? true : truthy(m["styled"]),
+      reminder: m["reminder"] || "",
+      created: m["created"] || "",
+      loaded: true
+    })
+    recount()
+  }
+
+  // ------------------------------------------------------------- files
+
+  property Process trashProc: Process {}
+
+  property Process scanProc: Process {
+    command: ["bash", "-c",
+      'mkdir -p "$1" "$2" && cd "$1" && ls -1 2>/dev/null || true',
+      "_", root.notesDir, root.trashDir]
+    stdout: StdioCollector {
+      onStreamFinished: root.syncFiles(text)
+    }
+  }
+
+  function rescan() { scanProc.running = false; scanProc.running = true }
+
+  // FileView cannot watch a path that does not exist yet, but it can watch the
+  // directory holding it. A change here means a note file was created or
+  // deleted, by us or by anything else touching the folder.
+  property FileView dirWatch: FileView {
+    path: root.notesDir
+    watchChanges: true
+    printErrors: false
+    onFileChanged: root.rescan()
+  }
+
+  property FileView orderFile: FileView {
+    path: root.orderPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var ids = String(text() || "").split("\n").filter(function (s) { return s.length })
+      root.order = ids
+      root.applyOrder()
+    }
+    onFileChanged: reload()
+    onLoadFailed: root.order = []
+  }
+
+  // One view per note. Gives every note atomic writes and live reload when
+  // something outside Ledge edits the file, without a central write queue.
+  property Instantiator noteViews: Instantiator {
+    model: root.notes
+    delegate: FileView {
+      required property string noteId
+      required property string file
+      path: file
+      watchChanges: true
+      atomicWrites: true
+      printErrors: false
+      onLoaded: root.ingest(noteId, text())
+      onFileChanged: reload()
+    }
+  }
+
+  Component.onCompleted: root.rescan()
+}

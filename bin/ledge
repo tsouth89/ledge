@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# ledge - edge-docked sticky notes for Hyprland
+set -euo pipefail
+
+find_shell_dir() {
+  if [[ -n ${LEDGE_SHELL_DIR:-} && -f $LEDGE_SHELL_DIR/shell.qml ]]; then
+    printf '%s' "$LEDGE_SHELL_DIR"; return
+  fi
+  local here; here=$(dirname "$(readlink -f "$0")")
+  local candidate
+  for candidate in /usr/share/ledge/shell "$here/../shell"; do
+    if [[ -f $candidate/shell.qml ]]; then
+      printf '%s' "$(readlink -f "$candidate")"; return
+    fi
+  done
+  echo "ledge: cannot locate shell.qml; set LEDGE_SHELL_DIR" >&2
+  exit 1
+}
+
+SHELL_DIR=$(find_shell_dir)
+
+running() { qs ipc --path "$SHELL_DIR" call ledge ping >/dev/null 2>&1; }
+
+start() {
+  if running; then echo "ledge: already running"; return 0; fi
+  qs --path "$SHELL_DIR" --daemonize
+  # The IPC target only registers once the config finishes loading.
+  local i
+  for i in $(seq 1 40); do running && return 0; sleep 0.1; done
+  echo "ledge: started but IPC did not come up" >&2
+  return 1
+}
+
+# Every note-touching command needs a live instance, since the notes model and
+# the file writes both live inside it.
+ipc() {
+  running || start >/dev/null
+  qs ipc --path "$SHELL_DIR" call ledge "$@"
+}
+
+usage() {
+  cat <<'USAGE'
+ledge - sticky notes that live on the edge of the screen
+
+  ledge start | stop | restart | status
+  ledge new [text]        create a note and open it (reads stdin if no text)
+  ledge add [text]        append to the most recent note (reads stdin)
+  ledge list              every note as JSON
+  ledge open <id>         open one note for editing
+  ledge rm <id>           move a note to the trash
+  ledge peek              fan the strip open without opening a note
+  ledge close             collapse the strip
+  ledge log               tail the running instance's log
+  ledge dir               print the data directory
+
+Notes live in ~/.local/share/ledge/notes as plain markdown files.
+Settings live in ~/.config/ledge/config.json.
+USAGE
+}
+
+# Read positional args, falling back to stdin so `... | ledge add` works.
+body_from() {
+  if [[ $# -gt 0 ]]; then printf '%s' "$*"
+  elif [[ ! -t 0 ]]; then cat
+  else printf ''
+  fi
+}
+
+cmd=${1:-start}
+[[ $# -gt 0 ]] && shift || true
+
+case "$cmd" in
+  start)   start ;;
+  stop)    running && qs kill --path "$SHELL_DIR" || echo "ledge: not running" ;;
+  restart) running && qs kill --path "$SHELL_DIR" >/dev/null 2>&1 || true; sleep 0.4; start ;;
+  status)
+    if running; then echo "running  (shell: $SHELL_DIR)"; else echo "stopped  (shell: $SHELL_DIR)"; fi ;;
+  new)     ipc create "$(body_from "$@")" ;;
+  add)     ipc append "$(body_from "$@")" ;;
+  list)    ipc list ;;
+  open)    [[ $# -ge 1 ]] || { echo "ledge: open needs a note id" >&2; exit 2; }; ipc open "$1" ;;
+  rm)      [[ $# -ge 1 ]] || { echo "ledge: rm needs a note id" >&2; exit 2; }; ipc remove "$1" ;;
+  peek)    ipc peek ;;
+  close)   ipc close ;;
+  dir)     echo "$HOME/.local/share/ledge" ;;
+  log)     qs log --path "$SHELL_DIR" ;;
+  -h|--help|help) usage ;;
+  *)       echo "ledge: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;
+esac

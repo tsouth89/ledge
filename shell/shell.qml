@@ -78,6 +78,21 @@ ShellRoot {
       return JSON.stringify(out)
     }
 
+    // Position is counted over visible notes, so it matches what you see on
+    // the strip rather than raw model indices.
+    function move(id: string, position: string): string {
+      var from = Store.indexOfId(id)
+      if (from < 0) return "unknown id"
+      var vis = []
+      for (var i = 0; i < Store.notes.count; i++)
+        if (!Store.notes.get(i).archived) vis.push(i)
+      var want = parseInt(position, 10)
+      if (!isFinite(want)) return "bad position"
+      want = Math.max(0, Math.min(vis.length - 1, want))
+      Store.move(from, vis[want])
+      return "ok"
+    }
+
     function remove(id: string): string {
       Store.remove(id)
       return "ok"

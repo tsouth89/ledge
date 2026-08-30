@@ -49,7 +49,9 @@ Reach for the edge. That is the whole interface.
 | hover the strip | fans out, showing labels |
 | hover a note | it opens |
 | click | opens and puts the caret in the text |
-| drag a dash | reorder |
+| drag a dash | reorder; neighbours slide aside to show where it lands |
+| the `+` at the end of the strip | new note |
+| `SUPER + N` | new note, from anywhere |
 | `Esc` | save and fold away |
 | scroll the strip | when there are more notes than fit |
 
@@ -69,6 +71,7 @@ ledge add [text]        append to the most recent note (reads stdin)
 ledge list              every note as JSON
 ledge open <id>         open one note for editing
 ledge rm <id>           move a note to the trash
+ledge move <id> <n>     move a note to position n (0 is first)
 ledge peek              fan the strip open
 ledge close             collapse it
 ```
@@ -83,9 +86,11 @@ ledge add "call the vet at 3"
 Bind it in Hyprland:
 
 ```lua
-o.bind("SUPER SHIFT", "N", "exec", "ledge new")
-o.bind("SUPER SHIFT", "P", "exec", "ledge peek")
+o.bind("SUPER + N", "New note", "ledge new")
 ```
+
+`SUPER + N` is the one plain-SUPER letter Omarchy leaves free that actually
+means something here, and it matches the macOS original's new-note chord.
 
 ## Your notes are just files
 

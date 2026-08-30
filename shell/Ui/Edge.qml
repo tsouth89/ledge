@@ -89,6 +89,33 @@ PanelWindow {
     win.cancelClose()
   }
 
+  // Visible (non-archived) model indices, in display order. Drag maths has to
+  // run over these rather than raw model indices: an archived note is still a
+  // row in the model but occupies no height on screen.
+  function visibleIndices() {
+    var out = []
+    for (var i = 0; i < Store.notes.count; i++)
+      if (!Store.notes.get(i).archived) out.push(i)
+    return out
+  }
+
+  // Where a drag that started on model index `origin` and has travelled `dy`
+  // would land, as a position within visibleIndices().
+  function dragTargetPos(origin, dy) {
+    var vis = win.visibleIndices()
+    var pos = vis.indexOf(origin)
+    if (pos < 0) return -1
+    var moved = pos + Math.round(dy / win.slotStep)
+    return Math.max(0, Math.min(vis.length - 1, moved))
+  }
+
+  function createNote() {
+    var id = Store.create("", "")
+    win.openNote(id)
+    win.editing = true
+    return id
+  }
+
   onPointerInsideChanged: {
     if (pointerInside) {
       cancelClose()
@@ -106,7 +133,14 @@ PanelWindow {
   // keybind does not light up every monitor at once.
   Connections {
     target: Bus
-    function onPeekRequested() { if (win.active) { win.peeked = true; win.scheduleClose() } }
+    function onPeekRequested() {
+      if (!win.active) return
+      win.peeked = true
+      // A CLI or keybind peek has no pointer to keep it alive, so the normal
+      // hideDelay would close it again before anyone looked. Hold it open long
+      // enough to reach, then fall back to the usual rules.
+      holdTimer.restart()
+    }
     function onCloseRequested() { win.closeNow() }
     function onOpenRequested(id) {
       if (!win.active) return
@@ -125,6 +159,12 @@ PanelWindow {
     id: openTimer
     interval: Config.openDelay
     onTriggered: if (win.hoveredId.length) win.openNote(win.hoveredId)
+  }
+
+  Timer {
+    id: holdTimer
+    interval: 2500
+    onTriggered: win.scheduleClose()
   }
 
   Timer {
@@ -210,7 +250,22 @@ PanelWindow {
             width: column.width
             height: archived ? 0 : Config.tabHeight
             visible: !archived
-            z: noteItem.open ? 20 : 0
+            z: noteItem.open ? 20 : (column.dragOrigin === index ? 15 : 0)
+
+            // How far this note steps aside to open a gap where the dragged
+            // note will land. Zero unless a drag is in flight and this note
+            // sits between the drag's origin and its current target.
+            readonly property real dragShift: {
+              if (column.dragOrigin < 0 || column.dragOrigin === index) return 0
+              var vis = win.visibleIndices()
+              var origin = vis.indexOf(column.dragOrigin)
+              var target = win.dragTargetPos(column.dragOrigin, column.dragDy)
+              var mine = vis.indexOf(index)
+              if (origin < 0 || target < 0 || mine < 0) return 0
+              if (mine > origin && mine <= target) return -win.slotStep
+              if (mine < origin && mine >= target) return win.slotStep
+              return 0
+            }
 
             Note {
               id: noteItem
@@ -230,13 +285,24 @@ PanelWindow {
               anchors.right: win.onLeft ? undefined : parent.right
               anchors.left: win.onLeft ? parent.left : undefined
 
-              // Lift the note off the bottom of the screen when opening it
-              // would otherwise run past the edge.
+              // Three cases: the note being dragged follows the pointer, its
+              // neighbours slide out of the way to show where it will land, and
+              // an open note lifts off the bottom of the screen if it would
+              // otherwise run past the edge.
               y: {
+                if (column.dragOrigin === slot.index) return column.dragDy
+                if (column.dragOrigin >= 0) return slot.dragShift
                 if (!open) return 0
                 var top = strip.y - strip.contentY + slot.y
                 var overflow = (top + height) - (content.height - 8)
                 return overflow > 0 ? -Math.min(overflow, top - 8) : 0
+              }
+
+              // The dragged note must track the pointer exactly; everything
+              // else eases into its new slot.
+              Behavior on y {
+                enabled: column.dragOrigin !== slot.index
+                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
               }
 
               onYChanged: if (open) win.openY = strip.y - strip.contentY + slot.y + y
@@ -261,23 +327,88 @@ PanelWindow {
               onEditingRequested: win.editing = true
               onDismissed: win.closeNow()
 
+              // Reordering the model mid-drag would rebind this very delegate
+              // to a different note, and the pointer grab would carry on
+              // dragging whatever landed underneath it. So the drag only moves
+              // pixels; the model is not touched until the drop.
               onDragStarted: {
                 column.dragOrigin = slot.index
+                column.dragDy = 0
                 openTimer.stop()
                 win.cancelClose()
               }
               onDragMoved: function (dy) {
                 if (column.dragOrigin < 0) return
-                var target = column.dragOrigin + Math.round(dy / win.slotStep)
-                target = Math.max(0, Math.min(Store.notes.count - 1, target))
-                if (target !== slot.index) Store.move(slot.index, target)
+                column.dragDy = dy
               }
-              onDragEnded: column.dragOrigin = -1
+              onDragEnded: {
+                var origin = column.dragOrigin
+                var dy = column.dragDy
+                column.dragOrigin = -1
+                column.dragDy = 0
+                if (origin < 0) return
+                var vis = win.visibleIndices()
+                var from = vis.indexOf(origin)
+                var to = win.dragTargetPos(origin, dy)
+                if (to >= 0 && to !== from) Store.move(origin, vis[to])
+              }
             }
           }
         }
 
+        // New note. Deliberately part of the strip rather than a floating
+        // button: the strip is the only thing the pointer ever goes looking
+        // for, so the way to add a note has to live there too. Half height, so
+        // it reads as an action rather than as another note.
+        Item {
+          id: adder
+          width: column.width
+          height: Math.round(Config.tabHeight * 0.42)
+
+          Rectangle {
+            id: adderBody
+            width: win.tabWidth
+            height: parent.height
+            radius: Math.min(9, height / 2)
+            anchors.right: win.onLeft ? undefined : parent.right
+            anchors.left: win.onLeft ? parent.left : undefined
+
+            color: Theme.withAlpha(Theme.accent,
+                                   adderHover.hovered ? 0.95 : (win.peeked ? 0.7 : 0.4))
+            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+            // Square off the screen-facing side, same as a note.
+            Rectangle {
+              color: adderBody.color
+              width: adderBody.radius
+              height: parent.height
+              anchors.right: win.onLeft ? undefined : parent.right
+              anchors.left: win.onLeft ? parent.left : undefined
+            }
+
+            Text {
+              anchors.centerIn: parent
+              text: "+"
+              font.family: Theme.fontFamily
+              font.pixelSize: 14
+              color: Theme.mix(Theme.accent, Theme.dark ? "#000000" : "#ffffff", 0.75)
+              opacity: win.peeked ? 1 : 0
+              visible: opacity > 0.01
+              Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
+          }
+
+          HoverHandler {
+            id: adderHover
+            onHoveredChanged: if (hovered) { win.hoveredId = ""; openTimer.stop() }
+          }
+
+          TapHandler { onTapped: win.createNote() }
+        }
+
         property int dragOrigin: -1
+        property real dragDy: 0
       }
     }
   }

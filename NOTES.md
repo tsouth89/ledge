@@ -87,6 +87,17 @@ file instead of touching every note below it. Matters for git and file sync.
 split, and a note you hover for half a second must not have modes. `- [ ]` is
 special-cased so checkboxes work without any rendering at all.
 
+**Never reorder the model during a drag.** With a `Repeater`, moving model data
+does not move the delegate; the delegate at index i simply rebinds to whatever
+data now sits at i. So a live reorder leaves the pointer grab attached to a
+delegate that is now a *different note*, and the rest of the drag moves the
+wrong one. Drags move pixels only (`column.dragDy` plus a per-slot `dragShift`
+for the neighbours); the model is touched once, on drop.
+
+**Drag maths runs over visible indices, not model indices.** An archived note is
+still a row in the model but has zero height on screen, so raw indices and
+on-screen positions diverge the moment anything is archived.
+
 **`hideDelay` is load-bearing.** Crossing the gap between a dash and the note it
 became reads as a pointer leave. Without the grace period the note snaps shut
 mid-reach. Same for the re-check inside `closeTimer`: a fast cursor can deliver
@@ -100,24 +111,24 @@ leave before enter, and without the re-check the strip latches open.
 - Live theme following, generated swatches, hot reload on `omarchy theme set`
 - Notes as `.md` files with frontmatter, atomic writes, external-edit reload
 - Checkbox toggling, colour cycling, pin, archive, delete-to-trash
-- IPC + CLI (`new`/`add`/`list`/`open`/`rm`/`peek`/`close`)
+- IPC + CLI (`new`/`add`/`list`/`open`/`rm`/`move`/`peek`/`close`)
+- Drag reorder, persisted to `order` and verified across a restart
+- `+` at the end of the strip for a new note, and `SUPER + N` globally
 - Config hot reload
 
 ## Next, roughly in order
 
-1. **Drag reorder is written but untested.** The index maths in `Note.onDragMoved`
-   has never been exercised with a real pointer.
-2. **All Notes window** - search, filter, archive browsing. Mac parity item.
-3. **Export** - markdown, plain text, single document.
-4. **Reminders** - `reminder:` is already parsed and persisted in frontmatter but
+1. **All Notes window** - search, filter, archive browsing. Mac parity item.
+2. **Export** - markdown, plain text, single document.
+3. **Reminders** - `reminder:` is already parsed and persisted in frontmatter but
    nothing fires. Wire it to an Omarchy notification.
-5. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
-6. **Inline markdown styling** behind the `styling` flag. The approach that works
+4. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
+5. **Inline markdown styling** behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-7. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
-8. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+6. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
+7. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 

@@ -48,6 +48,7 @@ ledge - sticky notes that live on the edge of the screen
   ledge list              every note as JSON
   ledge open <id>         open one note for editing
   ledge rm <id>           move a note to the trash
+  ledge move <id> <n>     move a note to position n on the strip (0 is first)
   ledge peek              fan the strip open without opening a note
   ledge close             collapse the strip
   ledge log               tail the running instance's log
@@ -59,9 +60,13 @@ USAGE
 }
 
 # Read positional args, falling back to stdin so `... | ledge add` works.
+#
+# Only a pipe or a redirected file counts as stdin. Testing `! -t 0` alone is
+# wrong here: launched from a Hyprland keybind there is no tty either, and this
+# would sit reading a descriptor that may never close.
 body_from() {
   if [[ $# -gt 0 ]]; then printf '%s' "$*"
-  elif [[ ! -t 0 ]]; then cat
+  elif [[ -p /dev/stdin || -f /dev/stdin ]]; then cat
   else printf ''
   fi
 }
@@ -80,6 +85,7 @@ case "$cmd" in
   list)    ipc list ;;
   open)    [[ $# -ge 1 ]] || { echo "ledge: open needs a note id" >&2; exit 2; }; ipc open "$1" ;;
   rm)      [[ $# -ge 1 ]] || { echo "ledge: rm needs a note id" >&2; exit 2; }; ipc remove "$1" ;;
+  move)    [[ $# -ge 2 ]] || { echo "ledge: move needs a note id and a position" >&2; exit 2; }; ipc move "$1" "$2" ;;
   peek)    ipc peek ;;
   close)   ipc close ;;
   dir)     echo "$HOME/.local/share/ledge" ;;

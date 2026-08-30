@@ -162,6 +162,14 @@ application is gated on a `Store.floatsReady` *property* rather than a signal --
 a singleton's file load can finish before shell.qml exists to connect to it, and
 that race showed up as every note being tiled.
 
+**A directory rescan can race a file move.** Deleting a note removes its row and
+*then* moves the file to trash. A rescan landing in between still sees the file
+and re-adds the row as an unloaded placeholder, and the reap pass used to skip
+rows that had never loaded -- so the row stayed forever, pointing at a file in
+the trash. Ids being moved are held in `Store.removing` and skipped by the scan,
+and the reap now spares only `pending` rows, which are the only ones legitimately
+without a file.
+
 **Cut input regions from the item, not from a snapshot of where it was.** The
 open note's `Region` was fed a y/height pushed over from the delegate's change
 handlers, which fired for the note's own geometry but not for its slot moving,
@@ -221,6 +229,19 @@ leave before enter, and without the re-check the strip latches open.
 
 ## Testing
 
-There is no test suite yet. `./bin/ledge restart` then check
-`grep -E 'WARN|ERROR' $(qs log --path shell)`. A clean load prints nothing but
-the portal warning.
+```bash
+./test/smoke.sh
+```
+
+Runs a second Ledge instance against a throwaway `LEDGE_DATA_DIR` and drives it
+over IPC, asserting on what lands on disk. It never touches real notes. The
+strip appears on screen for a few seconds while it runs, which is the point:
+what is being tested is a real shell, not a mock.
+
+Add a case for anything that breaks. The first run of this suite immediately
+found a ghost-row bug in delete that had been shipped and never noticed, which
+is a fair summary of why it exists. Several regressions in this project reached
+the user rather than the author, all of them mechanically checkable.
+
+Not covered, because it needs a real pointer: hover-to-peek, drag reorder,
+dragging a float between monitors, and the resize grip.

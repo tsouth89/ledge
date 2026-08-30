@@ -18,7 +18,12 @@ QtObject {
   id: root
 
   readonly property string home: Quickshell.env("HOME")
-  readonly property string dataDir: home + "/.local/share/ledge"
+
+  // Overridable so a test run, or a second profile, never touches real notes.
+  readonly property string dataDir: {
+    var override = Quickshell.env("LEDGE_DATA_DIR")
+    return (override && override.length) ? override : home + "/.local/share/ledge"
+  }
   readonly property string notesDir: dataDir + "/notes"
   readonly property string trashDir: dataDir + "/trash"
   readonly property string orderPath: dataDir + "/order"
@@ -368,6 +373,11 @@ QtObject {
     root.order = root.liveIds()
     persistOrder()
     recount()
+
+    var inflight = root.removing
+    inflight[id] = true
+    root.removing = inflight
+
     trashProc.exec(["bash", "-c",
       'mkdir -p "$1" && mv -f "$2" "$1/$(date +%s)-$(basename "$2")"',
       "_", root.trashDir, file])
@@ -385,6 +395,11 @@ QtObject {
   // ------------------------------------------------------------ writing
 
   property var pendingSaves: ({})
+
+  // Notes whose file is in the middle of being moved to the trash. A directory
+  // rescan that lands during the move still sees the file and would re-add the
+  // row as an unloaded placeholder, which then never goes away.
+  property var removing: ({})
 
   function saveDebounced(id) {
     var p = root.pendingSaves
@@ -447,6 +462,7 @@ QtObject {
       var file = files[i].replace(/^\s+|\s+$/g, "")
       if (!file.length || !file.match(/\.md$/)) continue
       var id = file.replace(/\.md$/, "")
+      if (root.removing[id]) continue
       seen[id] = true
       if (indexOfId(id) >= 0) continue
       notes.append({
@@ -467,9 +483,11 @@ QtObject {
 
     for (var j = notes.count - 1; j >= 0; j--) {
       var n = notes.get(j)
-      // `pending` notes have no file by design; only reap rows whose file was
-      // there and has since gone away.
-      if (!seen[n.noteId] && n.loaded && !n.pending) notes.remove(j)
+      // `pending` notes have no file by design and must survive. Everything
+      // else came from a directory listing, so a row whose file has gone is
+      // stale -- including one still waiting on its first load, which is
+      // exactly the ghost a delete used to leave behind.
+      if (!seen[n.noteId] && !n.pending) notes.remove(j)
     }
 
     applyOrder()
@@ -626,7 +644,12 @@ QtObject {
 
   // ------------------------------------------------------------- files
 
-  property Process trashProc: Process {}
+  property Process trashProc: Process {
+    onExited: {
+      root.removing = ({})
+      root.rescan()
+    }
+  }
   property Process purgeProc: Process {}
 
   property Process scanProc: Process {

@@ -10,7 +10,10 @@ QtObject {
   id: root
 
   readonly property string home: Quickshell.env("HOME")
-  readonly property string path: home + "/.config/ledge/config.json"
+  readonly property string path: {
+    var override = Quickshell.env("LEDGE_CONFIG")
+    return (override && override.length) ? override : home + "/.config/ledge/config.json"
+  }
 
   property var values: ({})
 

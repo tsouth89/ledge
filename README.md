@@ -220,6 +220,16 @@ See [docs/config.md](docs/config.md).
 }
 ```
 
+## Development
+
+```bash
+./test/smoke.sh     # drives a throwaway instance over IPC, asserts on disk state
+./bin/ledge restart # reload after editing the QML
+```
+
+`LEDGE_DATA_DIR` and `LEDGE_CONFIG` override where notes and settings live,
+which is how the tests stay clear of real notes.
+
 ## License
 
 MIT

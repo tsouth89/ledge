@@ -64,6 +64,7 @@ ledge - sticky notes that live on the edge of the screen
   ledge close             collapse the strip
   ledge log               tail the running instance's log
   ledge dir               print the data directory
+  ledge install-desktop   add Ledge to your launcher (only needed from a clone)
   ledge version           version and environment, for bug reports
 
 Notes live in ~/.local/share/ledge/notes as plain markdown files.
@@ -118,6 +119,30 @@ case "$cmd" in
   peek)    ipc peek ;;
   close)   ipc close ;;
   dir)     echo "${LEDGE_DATA_DIR:-$HOME/.local/share/ledge}" ;;
+  install-desktop)
+    # Register with menus and launchers when running from a clone. The packaged
+    # build installs these itself; this is the equivalent for a working tree.
+    #
+    # The Exec line is an absolute path on purpose: a launcher does not
+    # necessarily have ~/.local/bin on PATH, and a desktop entry that silently
+    # fails to launch is worse than none.
+    self=$(readlink -f "$0")
+    root=$(dirname "$(dirname "$self")")
+    apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    icons="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+    mkdir -p "$apps" "$icons"
+    if [[ -f $root/assets/ledge.svg ]]; then
+      install -m644 "$root/assets/ledge.svg" "$icons/ledge.svg"
+    fi
+    sed "s|^Exec=ledge |Exec=$self |" "$root/ledge.desktop" > "$apps/ledge.desktop"
+    chmod 644 "$apps/ledge.desktop"
+    command -v update-desktop-database >/dev/null && update-desktop-database "$apps" 2>/dev/null
+    command -v gtk-update-icon-cache >/dev/null && \
+      gtk-update-icon-cache -qtf "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null
+    echo "installed $apps/ledge.desktop"
+    echo "installed $icons/ledge.svg"
+    ;;
+
   version|--version|-V)
     # Everything a bug report needs, in one place.
     echo "ledge $LEDGE_VERSION"

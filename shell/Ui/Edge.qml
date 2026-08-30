@@ -1,6 +1,8 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import QtQuick.Window
+import Quickshell.Hyprland
 import qs.Core
 
 // The edge strip: a full-height layer surface pinned to one side of the
@@ -94,6 +96,7 @@ PanelWindow {
     win.openId = ""
     win.editing = false
     win.hoveredId = ""
+    win.heldFocus = false
     win.openItem = emptyRegion
     // Discard before flushing, so a note nobody typed into is never written
     // only to be deleted a moment later.
@@ -150,6 +153,9 @@ PanelWindow {
 
   onActiveChanged: if (!active) closeNow()
 
+  onOpenIdChanged: if (win.active) Bus.openNoteId = win.openId
+  onEditingChanged: if (win.active) Bus.editing = win.editing
+
   // External drivers. Only the strip on the wanted output responds, so a
   // keybind does not light up every monitor at once.
   Connections {
@@ -174,6 +180,14 @@ PanelWindow {
       win.editing = true
     }
   }
+
+  // Clicking elsewhere puts the note back on the edge.
+  //
+  // This deliberately does NOT take a focus grab. A grab is what a launcher
+  // does: it seizes the keyboard until dismissed. On a notes app that sits on
+  // screen all day, that means every keystroke meant for another window lands
+  // in a note instead. Watching for the surface losing focus achieves the same
+  // dismissal without ever taking the keyboard away from anything.
 
   Timer {
     id: peekTimer
@@ -204,9 +218,23 @@ PanelWindow {
 
   // -------------------------------------------------------------- content
 
+  // Has this surface ever actually held keyboard focus? Losing focus only means
+  // something if it had it: a strip that was never focused must not treat that
+  // as the user clicking away.
+  property bool heldFocus: false
+
   Item {
     id: content
     anchors.fill: parent
+
+    // Losing keyboard focus is the other half of click-to-dismiss. The focus
+    // grab below catches a click on empty desktop; this catches focus moving to
+    // another window, however it got there.
+    readonly property bool windowActive: Window.active
+    onWindowActiveChanged: {
+      if (windowActive) { win.heldFocus = true; return }
+      if (win.heldFocus && win.editing) win.closeNow()
+    }
 
     HoverHandler {
       onHoveredChanged: win.pointerInside = hovered

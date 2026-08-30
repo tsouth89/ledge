@@ -109,6 +109,10 @@ is "restored note is back" "$(count)" "4"
 # running scan handed back a truncated listing, which read as "no notes exist"
 # and reaped every row; the next scan re-added them empty. Whoever had a note
 # open watched it blank itself mid-sentence.
+# Measure the delta across the writes only. Counting cumulatively swept up the
+# delete test above, where a file legitimately does disappear, which made this
+# fail intermittently for a reason that had nothing to do with what it claims.
+reaped_before=$(ipc stats | python3 -c 'import sys,json;print(json.load(sys.stdin)["reaped"])')
 CHURN=$(ipc create "keep line")
 settle
 for extra in a b c d e; do
@@ -116,8 +120,8 @@ for extra in a b c d e; do
   sleep 0.5
 done
 sleep 1
-reaped=$(ipc stats | python3 -c 'import sys,json;print(json.load(sys.stdin)["reaped"])')
-is "writing a note never tears its row down" "$reaped" "0"
+reaped_after=$(ipc stats | python3 -c 'import sys,json;print(json.load(sys.stdin)["reaped"])')
+is "writing a note never tears its row down" "$(( reaped_after - reaped_before ))" "0"
 churn_body=$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2' "$DATA/notes/$CHURN.md" | tr -d '\n')
 is "repeated writes keep every line" "$churn_body" "keep lineline aline bline cline dline e"
 is "and do not duplicate the note" "$(find "$DATA/notes" -name "$CHURN.md" | wc -l)" "1"

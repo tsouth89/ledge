@@ -262,17 +262,9 @@ ShellRoot {
     }
   }
 
-  Connections {
-    target: Store
-    function onConflictKept(id, path) {
-      var proc = notifier.createObject(shell, { noteId: id })
-      if (!proc) return
-      proc.command = ["notify-send", "--app-name=Ledge", "--icon=ledge",
-                      "Note edited in two places",
-                      "Kept the other version at " + path]
-      proc.running = true
-    }
-  }
+  // A conflict copy is written silently. Notifying on every one turned into a
+  // stream of popups about files the user never asked about; the copy is there
+  // in conflicts/ if it is ever needed.
 
   // ---------------------------------------------------------- reminders
   //
@@ -351,7 +343,9 @@ ShellRoot {
         live: Store.liveCount,
         floating: Store.floatIds.length,
         reaped: Store.reapCount,
-        ready: Store.ready
+        ready: Store.ready,
+        open: Bus.openNoteId,
+        editing: Bus.editing
       })
     }
 

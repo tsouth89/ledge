@@ -13,6 +13,11 @@ QtObject {
   // must reach the compositor before the window maps, so the shell runs that
   // first and only then adds the note to the float table.
   signal popRequested(string id, real x, real y)
+  // Published by whichever strip is active, so the note currently open on the
+  // edge is visible to `ledge stats` and therefore assertable.
+  property string openNoteId: ""
+  property bool editing: false
+
   signal libraryRequested()
   signal peekRequested()
   signal closeRequested()

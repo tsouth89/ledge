@@ -2,6 +2,48 @@
 
 Live handoff doc. Read this first.
 
+## Picking this up again
+
+Last worked on 2026-08-30. Everything is committed and pushed; the working tree
+is clean.
+
+**Where things live**
+
+| | |
+|---|---|
+| source | `~/Projects/ledge` (this repo) |
+| remote | `github.com/tsouth89/ledge`, public, `main` |
+| release | v0.1.0, with a built package attached |
+| off-disk backup | `/data/backups/ledge-*.bundle` (`git clone` restores from it) |
+| notes and data | `~/.local/share/ledge/` |
+| settings | `~/.config/ledge/config.json` (absent = defaults) |
+| keybinds | `~/.config/hypr/bindings.lua`, in a `ledge:bindings` block |
+| autostart | `~/.config/hypr/autostart.lua`, in a `ledge:autostart` block |
+| on PATH | `~/.local/bin/ledge` -> this repo, so it follows the working tree |
+
+Brandon is using this for real notes as of 2026-08-30. **Do not test against
+`~/.local/share/ledge`.** Every test run must set `LEDGE_DATA_DIR` to a
+throwaway directory; `test/smoke.sh` already does. Two of his notes needed
+repairing after being used as test subjects, and one lost its archived flag.
+
+**Before changing anything**
+
+```bash
+./test/smoke.sh          # 39 assertions, needs a Wayland session
+ledge restart            # reload after editing QML
+ledge stats              # notes, live, floating, reaped, ready
+```
+
+`reaped` should stay at 0 while notes are merely being edited. If it climbs,
+scanning is racing its own writes again and open notes are being torn down
+underneath the UI. That was the worst bug in the project.
+
+**The habit that mattered most**
+
+Three times in this project a "bug" turned out to be the measurement, not the
+code, and twice the fix broke something that worked. Reproduce first, measure
+the actual values, and only then change anything.
+
 ## What this is
 
 Edge-docked sticky notes for Hyprland, built as a standalone Quickshell app.

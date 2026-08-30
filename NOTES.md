@@ -246,8 +246,7 @@ leave before enter, and without the re-check the strip latches open.
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-2. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
-3. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+2. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 
@@ -267,3 +266,7 @@ the user rather than the author, all of them mechanically checkable.
 
 Not covered, because it needs a real pointer: hover-to-peek, drag reorder,
 dragging a float between monitors, and the resize grip.
+
+Every `monitor` mode has been exercised by hand on a two-output layout:
+`focused` follows focus, `all` maps one strip per output, and a named output
+pins to it. All four hot-reload without a restart.

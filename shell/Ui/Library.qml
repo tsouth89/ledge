@@ -21,6 +21,7 @@ FloatingWindow {
   // "notes" | "archived" | "trash"
   property string view: "notes"
   property string query: ""
+  property string hint: ""
 
   // Named to avoid colliding with Window's own closed signal.
   signal dismissRequested()
@@ -167,6 +168,18 @@ FloatingWindow {
         // which would otherwise shadow the row's.
         readonly property var row: modelData
 
+        // Destructive row actions arm on the first click and act on the second,
+        // matching the delete control on a note itself. These were one-click,
+        // and a row of small icons you are scanning through is exactly where a
+        // stray click happens: it cost four real notes during development.
+        property string armed: ""
+
+        Timer {
+          id: disarmRow
+          interval: 2600
+          onTriggered: parent.armed = ""
+        }
+
         width: list.width - (list.ScrollBar.vertical.visible ? 10 : 0)
         height: 52
         radius: 6
@@ -252,15 +265,31 @@ FloatingWindow {
               text: modelData.g
               font.family: Theme.fontFamily
               font.pixelSize: 12
-              color: Theme.withAlpha(actHit.containsMouse ? Theme.foregroundBright : Theme.foreground,
-                                     actHit.containsMouse ? 1 : 0.55)
+              color: armed === modelData.act
+                     ? Theme.urgent
+                     : Theme.withAlpha(actHit.containsMouse ? Theme.foregroundBright : Theme.foreground,
+                                       actHit.containsMouse ? 1 : 0.55)
 
               MouseArea {
                 id: actHit
                 anchors.fill: parent
                 anchors.margins: -5
                 hoverEnabled: true
-                onClicked: win.runAction(modelData.act, row)
+                onEntered: win.hint = armed === modelData.act ? "Click again" : modelData.tip
+                onExited: if (win.hint === modelData.tip) win.hint = ""
+                onClicked: {
+                  var destructive = modelData.act === "delete" || modelData.act === "purge"
+                  if (destructive && armed !== modelData.act) {
+                    armed = modelData.act
+                    win.hint = "Click again to " + modelData.tip.toLowerCase()
+                    disarmRow.restart()
+                    return
+                  }
+                  disarmRow.stop()
+                  armed = ""
+                  win.hint = ""
+                  win.runAction(modelData.act, row)
+                }
               }
             }
           }

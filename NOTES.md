@@ -179,6 +179,13 @@ why headings change weight and colour but never size. Verified by measuring: the
 same line occupies rows 65-75 and columns 18-299 in both modes. Bold sharing an
 advance width is a property of monospaced faces only, hence the `styling` switch.
 
+**Every destructive control confirms, in every surface.** The delete on a note
+armed on the first click and acted on the second; the identical-looking delete
+in the All Notes rows did it in one. A row of small icons being scanned through
+is exactly where a stray click lands, and it cost four real notes during
+development before anyone noticed they had gone. If a control destroys
+something, it arms first, wherever it lives.
+
 **Never assign to a TextEdit's `text` to make a small edit.** Assigning rebuilds
 the document and throws the undo history away, so toggling one checkbox used to
 cost every edit made to that note. `remove()` + `insert()` keeps it.

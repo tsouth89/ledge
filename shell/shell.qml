@@ -71,6 +71,11 @@ ShellRoot {
     return "(function() " + statements.join(" ") + " end)()"
   }
 
+  readonly property string libraryRuleLua:
+    'hl.window_rule({ match = { title = "^(ledge-library)$" }'
+    + ', tag = "-default-opacity", float = true, center = true'
+    + ', no_dim = true, opacity = "1 1" })'
+
   readonly property string baseRuleLua:
     'hl.window_rule({ match = { title = "^(ledge-note:.*)$" }'
     + ', tag = "-default-opacity"'
@@ -131,7 +136,8 @@ ShellRoot {
   function applyStartupRules() {
     if (shell.rulesRequested || !Store.floatsReady) return
     shell.rulesRequested = true
-    baseRuleProc.command = ["hyprctl", "eval", shell.baseRuleLua]
+    baseRuleProc.command = ["hyprctl", "eval",
+                            shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
     baseRuleProc.running = true
   }
 
@@ -165,6 +171,22 @@ ShellRoot {
   Variants {
     model: shell.rulesReady ? Store.floatIds : []
     delegate: Float {}
+  }
+
+  // ------------------------------------------------------------- library
+
+  property bool libraryOpen: false
+
+  Connections {
+    target: Bus
+    function onLibraryRequested() { shell.libraryOpen = !shell.libraryOpen }
+  }
+
+  Loader {
+    active: shell.libraryOpen
+    sourceComponent: Library {
+      onDismissRequested: shell.libraryOpen = false
+    }
   }
 
   // ------------------------------------------------------------------ ipc
@@ -219,6 +241,30 @@ ShellRoot {
       if (!Store.isFloating(id)) return "not floating"
       Store.unfloat(id)
       return "ok"
+    }
+
+    function all(): string { Bus.libraryRequested(); return "ok" }
+
+    function trash(): string {
+      var out = []
+      for (var i = 0; i < Store.trashModel.count; i++) {
+        var e = Store.trashModel.get(i)
+        out.push({ file: e.file, title: e.title, deletedAt: e.deletedAt })
+      }
+      return JSON.stringify(out)
+    }
+
+    function restore(file: string): string {
+      Store.restoreTrashed(file)
+      return "ok"
+    }
+
+    function refreshTrash(): string { Store.refreshTrash(); return "ok" }
+
+    function exportAll(path: string, includeArchived: string): string {
+      var target = (path && path.length) ? path : (Store.home + "/ledge-notes.md")
+      var n = Store.exportAll(target, includeArchived !== "false")
+      return n + " notes -> " + target
     }
 
     function peek(): string { Bus.peekRequested(); return "ok" }

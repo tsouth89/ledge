@@ -1,4 +1,6 @@
 module qs.Ui
 Edge 1.0 Edge.qml
 Float 1.0 Float.qml
+Library 1.0 Library.qml
+LibraryButton 1.0 LibraryButton.qml
 Note 1.0 Note.qml

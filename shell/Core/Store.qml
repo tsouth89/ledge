@@ -480,6 +480,118 @@ QtObject {
     recount()
   }
 
+  // -------------------------------------------------------------- trash
+  //
+  // Deleted notes keep their file, prefixed with the epoch second they were
+  // removed. Nothing reads them back into the notes model, so they are listed
+  // straight off disk rather than mirrored in memory.
+
+  readonly property ListModel trashModel: ListModel {}
+
+  function refreshTrash() { trashScan.running = false; trashScan.running = true }
+
+  function ingestTrash(listing) {
+    trashModel.clear()
+    var lines = String(listing || "").split("\n")
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i]
+      if (!line.length) continue
+      var tab = line.indexOf("\t")
+      if (tab < 0) continue
+      var file = line.slice(0, tab)
+      var preview = line.slice(tab + 1)
+      var stamp = file.match(/^(\d+)-/)
+      trashModel.append({
+        file: file,
+        title: preview.length ? preview : "Untitled",
+        deletedAt: stamp ? parseInt(stamp[1], 10) : 0
+      })
+    }
+  }
+
+  function restoreTrashed(file) {
+    // Strip the epoch prefix to recover the original note id. A note whose id
+    // is somehow already back in place is restored beside it rather than over
+    // it; losing the newer of the two would be the worse failure.
+    trashOps.exec(["bash", "-c",
+      'set -e; src="$1/$2"; id="${2#*-}"; dest="$3/$id"; '
+      + 'if [ -e "$dest" ]; then dest="$3/restored-$2"; fi; mv -n "$src" "$dest"',
+      "_", root.trashDir, file, root.notesDir])
+    trashSettle.restart()
+  }
+
+  function purgeTrashed(file) {
+    trashOps.exec(["bash", "-c", 'rm -f -- "$1/$2"', "_", root.trashDir, file])
+    trashSettle.restart()
+  }
+
+  function emptyTrash() {
+    trashOps.exec(["bash", "-c", 'rm -f -- "$1"/*.md 2>/dev/null || true', "_", root.trashDir])
+    trashSettle.restart()
+  }
+
+  property Process trashOps: Process {}
+
+  property Timer trashSettle: Timer {
+    interval: 250
+    onTriggered: { root.refreshTrash(); root.rescan() }
+  }
+
+  property Process trashScan: Process {
+    command: ["bash", "-c",
+      'mkdir -p "$1"; cd "$1" || exit 0; '
+      + 'for f in *.md; do [ -e "$f" ] || continue; '
+      + 'line=$(awk \'BEGIN{c=0} /^---$/{c++; next} c>=2 && NF {print; exit}\' "$f" | cut -c1-70); '
+      + 'printf "%s\\t%s\\n" "$f" "$line"; done',
+      "_", root.trashDir]
+    stdout: StdioCollector { onStreamFinished: root.ingestTrash(text) }
+  }
+
+  // Human-readable age, for the trash listing. Deliberately coarse: the exact
+  // minute something was deleted is never the question being asked.
+  function relativeTime(epochSeconds) {
+    if (!epochSeconds) return "some time ago"
+    var secs = Math.max(0, Math.floor(Date.now() / 1000) - epochSeconds)
+    if (secs < 90) return "just now"
+    var mins = Math.round(secs / 60)
+    if (mins < 60) return mins + (mins === 1 ? " minute ago" : " minutes ago")
+    var hours = Math.round(mins / 60)
+    if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago")
+    var days = Math.round(hours / 24)
+    return days + (days === 1 ? " day ago" : " days ago")
+  }
+
+  // ------------------------------------------------------------- export
+
+  // Everything as one document, newest section last. Written through a helper
+  // rather than assembled in QML so the file lands atomically.
+  function exportAll(path, includeArchived) {
+    var parts = []
+    for (var i = 0; i < notes.count; i++) {
+      var n = notes.get(i)
+      if (n.archived && !includeArchived) continue
+      if (n.pending) continue
+      // A note's title is its first line, so promoting that line to a heading
+      // and then printing the body verbatim would say it twice. Only an
+      // explicit frontmatter title is additional to the body.
+      var body = String(n.body || "").replace(/\s+$/, "")
+      if (!(n.title && n.title.length)) {
+        var nl = body.indexOf("\n")
+        body = nl < 0 ? "" : body.slice(nl + 1).replace(/^\n+/, "")
+      }
+      parts.push("## " + deriveTitle(n.body, n.title)
+                 + (n.archived ? "  (archived)" : "")
+                 + (body.length ? "\n\n" + body + "\n" : "\n"))
+    }
+    var doc = "# Ledge notes\n\n" + parts.join("\n---\n\n")
+    exportProc.exec(["bash", "-c", 'cat > "$1"', "_", path])
+    exportProc.write(doc)
+    exportProc.stdinEnabled = false
+    return parts.length
+  }
+
+  property Process exportProc: Process { stdinEnabled: true }
+
   // ------------------------------------------------------------- files
 
   property Process trashProc: Process {}

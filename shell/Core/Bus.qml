@@ -13,6 +13,7 @@ QtObject {
   // must reach the compositor before the window maps, so the shell runs that
   // first and only then adds the note to the float table.
   signal popRequested(string id, real x, real y)
+  signal libraryRequested()
   signal peekRequested()
   signal closeRequested()
   signal openRequested(string id)

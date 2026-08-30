@@ -67,6 +67,19 @@ A note you open and never type into is discarded when it closes. Nothing is
 written to disk until a note has something in it, so reaching for `SUPER + N`,
 thinking better of it, and pressing it again leaves nothing behind.
 
+### All notes
+
+`SUPER + SHIFT + L` opens a window with every note in it: search across bodies
+and titles, browse what you have archived, and go through the trash.
+
+Deleting a note moves its file to `trash/` rather than unlinking it, and the
+trash view lists what is in there with how long ago it went, so a note you
+deleted by mistake is two clicks from being back. Emptying the trash is the only
+thing in Ledge that destroys anything, and it asks twice.
+
+Export writes every note into one markdown file, using each note's first line as
+its heading.
+
 ### Popping a note out
 
 Notes do not have to stay on the edge. Pop one out and it detaches to sit
@@ -92,6 +105,10 @@ ledge start | stop | restart | status
 ledge new [text]        create a note and open it (reads stdin)
 ledge add [text]        append to the most recent note (reads stdin)
 ledge list              every note as JSON
+ledge all               open the All Notes window
+ledge export [path]     write every note to one markdown file
+ledge trash             list deleted notes as JSON
+ledge restore <file>    bring a deleted note back
 ledge open <id>         open one note for editing
 ledge rm <id>           move a note to the trash
 ledge move <id> <n>     move a note to position n (0 is first)
@@ -113,6 +130,7 @@ Bind it in Hyprland:
 
 ```lua
 o.bind("SUPER + N", "New note", "ledge new")
+o.bind("SUPER + SHIFT + L", "All notes", "ledge all")
 ```
 
 `SUPER + N` is the one plain-SUPER letter Omarchy leaves free that actually

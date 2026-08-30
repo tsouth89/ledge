@@ -47,6 +47,10 @@ ledge - sticky notes that live on the edge of the screen
                           so pressing the same key again puts it away
   ledge add [text]        append to the most recent note (reads stdin)
   ledge list              every note as JSON
+  ledge all               open the All Notes window (search, archive, trash)
+  ledge export [path]     write every note to one markdown file
+  ledge trash             list deleted notes as JSON
+  ledge restore <file>    bring a deleted note back
   ledge open <id>         open one note for editing
   ledge rm <id>           move a note to the trash
   ledge move <id> <n>     move a note to position n on the strip (0 is first)
@@ -91,6 +95,10 @@ case "$cmd" in
     else ipc create "$(body_from "$@")"; fi ;;
   add)     ipc append "$(body_from "$@")" ;;
   list)    ipc list ;;
+  all)     ipc all ;;
+  export)  ipc exportAll "${1:-}" "${2:-true}" ;;
+  trash)   ipc refreshTrash >/dev/null; sleep 0.35; ipc trash ;;
+  restore) [[ $# -ge 1 ]] || { echo "ledge: restore needs a trash filename (see 'ledge trash')" >&2; exit 2; }; ipc restore "$1" ;;
   open)    [[ $# -ge 1 ]] || { echo "ledge: open needs a note id" >&2; exit 2; }; ipc open "$1" ;;
   rm)      [[ $# -ge 1 ]] || { echo "ledge: rm needs a note id" >&2; exit 2; }; ipc remove "$1" ;;
   pop)     [[ $# -ge 1 ]] || { echo "ledge: pop needs a note id" >&2; exit 2; }; ipc pop "$1" ;;

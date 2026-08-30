@@ -47,6 +47,11 @@ QtObject {
   readonly property int tabGap: Math.max(0, num("tabGap", 4))
 
   readonly property int cardWidth: Math.max(180, num("cardWidth", 300))
+
+  // Transparent margin around a popped-out note, inside its window, for the
+  // note's own drop shadow. Stored float geometry is the *note* rectangle; the
+  // window is this much larger on each side.
+  readonly property int floatShadowPad: Math.max(0, num("floatShadowPad", 14))
   readonly property int cardMinHeight: Math.max(56, num("cardMinHeight", 92))
   readonly property int cardMaxHeight: Math.max(root.cardMinHeight, num("cardMaxHeight", 420))
 

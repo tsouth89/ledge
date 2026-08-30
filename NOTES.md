@@ -131,6 +131,20 @@ and placement rules are separate calls: the worst a bad placement rule can now
 do is leave one note in the wrong position. Verified by injecting a malformed
 id and confirming the notes still float.
 
+**Do not try to reposition a live window from Ledge.** `hl.dispatch(dispatcher,
+"title:...")` does *not* target by title -- it falls through to the focused
+window, so an attempt to nudge a note moved whatever the user was actually
+using. Ledge is read-only toward window geometry: it asks Hyprland where a note
+ended up and remembers that. Placement happens once, through a rule, before the
+window exists.
+
+**Runtime window rules accumulate within a session.** Each pop adds another rule
+for that note's title. The last matching rule wins, so behaviour stays correct
+and the cost is a slow memory trickle cleared by any `hyprctl reload`. Worth
+knowing while debugging: stale rules from earlier runs are still live, and a
+non-`exact` rule left over from an older build will make placement look broken
+in a way the current code cannot explain.
+
 **`move` in a window rule is monitor-relative unless you pass `exact = true`.**
 A note saved at x=400 reopened at x=2448 when the second monitor happened to be
 focused, because 2448 is 400 past that monitor's origin. This is invisible while

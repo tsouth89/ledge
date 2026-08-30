@@ -71,12 +71,17 @@ QtObject {
     persistFloats()
   }
 
-  function setFloatSize(id, w, h) {
+  // The note rectangle, in global compositor coordinates. Written back from
+  // what the compositor actually did, since it owns the geometry of a
+  // popped-out note and a Wayland client is never told where it is.
+  function setFloatGeometry(id, x, y, w, h) {
     if (!isFloating(id)) return
+    if (![x, y, w, h].every(isFinite)) return
+    var cur = root.floats[id]
+    if (cur.x === Math.round(x) && cur.y === Math.round(y)
+        && cur.w === Math.round(w) && cur.h === Math.round(h)) return
     var f = JSON.parse(JSON.stringify(root.floats))
-    if (f[id].w === Math.round(w) && f[id].h === Math.round(h)) return
-    f[id].w = Math.round(w)
-    f[id].h = Math.round(h)
+    f[id] = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }
     root.floats = f
     floatSaveTimer.restart()
   }

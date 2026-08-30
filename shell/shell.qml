@@ -57,9 +57,12 @@ ShellRoot {
   // at x=400 reopened at 2448 when the second monitor happened to be focused.
   function placementLua(id, x, y, w, h) {
     if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return ""
+    // Stored geometry is the note rectangle; the window carries a transparent
+    // margin around it for the note's shadow, so convert on the way out.
+    var pad = Config.floatShadowPad
     return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
-         + ', move = { ' + Math.round(x) + ', ' + Math.round(y) + ', exact = true }'
-         + ', size = { ' + Math.round(w) + ', ' + Math.round(h) + ' } })'
+         + ', move = { ' + Math.round(x - pad) + ', ' + Math.round(y - pad) + ', exact = true }'
+         + ', size = { ' + Math.round(w + pad * 2) + ', ' + Math.round(h + pad * 2) + ' } })'
   }
 
   // hyprctl eval wraps its argument in `return ...`, so several statements have
@@ -145,8 +148,11 @@ ShellRoot {
     target: Bus
     function onPopRequested(id, x, y) {
       if (Store.isFloating(id)) return
-      var w = Config.cardWidth
-      var h = 200
+      // Reuse the size this note was last given, so popping it out again does
+      // not undo a resize.
+      var prev = Store.floats[id]
+      var w = prev && prev.w ? prev.w : Config.cardWidth
+      var h = prev && prev.h ? prev.h : 200
       ruleProc.exited.connect(function once() {
         ruleProc.exited.disconnect(once)
         Store.setFloating(id, x, y, w, h)
@@ -184,13 +190,17 @@ ShellRoot {
     function pop(id: string): string {
       if (Store.indexOfId(id) < 0) return "unknown id"
       if (Store.isFloating(id)) return "already floating"
-      // Land it on the focused output rather than at the desktop origin,
-      // which on a multi-monitor layout may not be the screen you are looking at.
+      // Land it on the focused output rather than at the desktop origin, which
+      // on a multi-monitor layout may not be the screen being looked at.
       var scr = Hyprland.focusedMonitor
       var base = null
       for (var i = 0; i < Quickshell.screens.length; i++)
         if (scr && Quickshell.screens[i].name === scr.name) base = Quickshell.screens[i]
-      Store.setFloating(id, (base ? base.x : 0) + 80, (base ? base.y : 0) + 120)
+      // Through the same path the UI uses, so the placement rule is applied
+      // before the window exists. Calling Store.setFloating directly here meant
+      // a note popped from the CLI inherited whatever stale rule was lying
+      // around from a previous pop.
+      Bus.popRequested(id, (base ? base.x : 0) + 80, (base ? base.y : 0) + 120)
       Bus.closeRequested()
       return "ok"
     }

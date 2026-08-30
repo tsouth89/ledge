@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import qs.Core
 
 // A popped-out note.
@@ -46,7 +47,7 @@ FloatingWindow {
   // Room around the note for our own drop shadow. The window itself is
   // borderless and unrounded by rule, so this padding is the only thing
   // separating the note from the windows behind it.
-  readonly property int shadowPad: 14
+  readonly property int shadowPad: Config.floatShadowPad
 
   minimumSize: Qt.size(180 + shadowPad * 2, 90 + shadowPad * 2)
 
@@ -93,13 +94,20 @@ FloatingWindow {
   // is no equivalent for position: a Wayland client is never told where it is,
   // so placement is restored through the compositor instead (see Placement in
   // shell.qml).
-  onWidthChanged: if (settled) sizeSaver.restart()
-  onHeightChanged: if (settled) sizeSaver.restart()
+  // A Wayland client is never told where its own window is, so position comes
+  // back from the compositor. Hyprland's own view of the window updates as it
+  // is dragged and resized, which is what makes remembering it possible at all.
+  readonly property var toplevel: {
+    var model = Hyprland.toplevels
+    var vals = model ? model.values : []
+    for (var i = 0; i < vals.length; i++)
+      if (vals[i] && vals[i].title === win.title) return vals[i]
+    return null
+  }
 
-  // Nothing is persisted until the window has stopped being resized *at* us.
-  // Without this, a window the compositor tiled before its rules landed writes
-  // its tiled geometry straight into floats.json and the note is wrong forever
-  // after.
+  // Nothing is persisted until the window has settled. Without this, a window
+  // the compositor placed before its rules landed writes that geometry straight
+  // into floats.json and the note is wrong from then on.
   property bool settled: false
   Timer {
     running: true
@@ -107,15 +115,46 @@ FloatingWindow {
     onTriggered: win.settled = true
   }
 
+  Connections {
+    target: win.toplevel
+    function onLastIpcObjectChanged() { geometrySaver.restart() }
+  }
+
+  // The change signal alone is not enough: it fires once when the window is
+  // created, which is before `settled` and therefore ignored, and Hyprland does
+  // not push a fresh object for every step of a drag. So the window's real
+  // geometry is also re-read on a slow tick while it exists. This is read-only
+  // -- Ledge asks the compositor where the note is and remembers it, and never
+  // tells it where to put a window that is already on screen.
   Timer {
-    id: sizeSaver
-    interval: 400
+    running: win.visible
+    interval: 1500
+    repeat: true
     onTriggered: {
-      if (!win.state) return
-      var w = win.width - win.shadowPad * 2
-      var h = win.height - win.shadowPad * 2
-      if (w < 180 || h < 90 || w > 900 || h > 1200) return
-      Store.setFloatSize(win.noteId, w, h)
+      Hyprland.refreshToplevels()
+      win.rememberGeometry()
     }
+  }
+
+  onSettledChanged: if (settled) rememberGeometry()
+
+  Timer {
+    id: geometrySaver
+    interval: 400
+    onTriggered: win.rememberGeometry()
+  }
+
+  function rememberGeometry() {
+    if (!settled || !state || !toplevel) return
+    var o = toplevel.lastIpcObject
+    if (!o || !o.at || !o.size) return
+    // A window the compositor has tiled is not describing where the user put
+    // it, so do not learn from it.
+    if (o.floating === false) return
+    var pad = win.shadowPad
+    var w = o.size[0] - pad * 2
+    var h = o.size[1] - pad * 2
+    if (w < 160 || h < 80 || w > 1200 || h > 1400) return
+    Store.setFloatGeometry(win.noteId, o.at[0] + pad, o.at[1] + pad, w, h)
   }
 }

@@ -77,6 +77,50 @@ ShellRoot {
     return "(function() " + statements.join(" ") + " end)()"
   }
 
+  // Hyprland has two config parsers and they take window rules by completely
+  // different routes. The Lua parser (Omarchy 4 and anything else opting in)
+  // refuses `hyprctl keyword` outright -- "keyword can't work with non-legacy
+  // parsers. Use eval." -- while the classic parser has no `hl.window_rule` to
+  // call. Assuming either one strands every user of the other with popped-out
+  // notes that tile instead of floating.
+  readonly property bool luaConfig: Hyprland.usingLua
+
+  // Classic parser equivalents of the same rules.
+  readonly property var legacyBaseRules: [
+    "float", "pin", "noinitialfocus", "noblur", "noshadow", "nodim",
+    "bordersize 0", "rounding 0", "opacity 1 1"
+  ]
+
+  function legacyKeyword(rule, match) {
+    return "keyword windowrule " + rule + ", " + match
+  }
+
+  function legacyBaseCommand() {
+    var match = 'title:^(ledge-note:.*)$'
+    var parts = []
+    for (var i = 0; i < legacyBaseRules.length; i++)
+      parts.push(legacyKeyword(legacyBaseRules[i], match))
+    parts.push(legacyKeyword("float", 'title:^(ledge-library)$'))
+    parts.push(legacyKeyword("center", 'title:^(ledge-library)$'))
+    return ["hyprctl", "--batch", parts.join(" ; ")]
+  }
+
+  function legacyPlacementCommand(entries) {
+    var parts = []
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i]
+      var match = "title:^(ledge-note:" + e.id + ")$"
+      var pad = Config.floatShadowPad
+      if (e.st.monitor && e.st.monitor.length)
+        parts.push(legacyKeyword("monitor " + e.st.monitor, match))
+      parts.push(legacyKeyword("move " + Math.round(e.st.x - pad)
+                               + " " + Math.round(e.st.y - pad), match))
+      parts.push(legacyKeyword("size " + Math.round(e.st.w + pad * 2)
+                               + " " + Math.round(e.st.h + pad * 2), match))
+    }
+    return parts.length ? ["hyprctl", "--batch", parts.join(" ; ")] : []
+  }
+
   readonly property string libraryRuleLua:
     'hl.window_rule({ match = { title = "^(ledge-library)$" }'
     + ', tag = "-default-opacity", float = true, center = true'
@@ -121,13 +165,26 @@ ShellRoot {
   }
 
   function applyPlacementRules() {
-    var lines = []
-    for (var id in Store.floats) {
-      var rule = shell.placementLua(id, Store.floats[id])
-      if (rule.length) lines.push(rule)
+    if (shell.luaConfig) {
+      var lines = []
+      for (var id in Store.floats) {
+        var rule = shell.placementLua(id, Store.floats[id])
+        if (rule.length) lines.push(rule)
+      }
+      if (!lines.length) return
+      setupProc.command = ["hyprctl", "eval", shell.evalChunk(lines)]
+      setupProc.running = true
+      return
     }
-    if (!lines.length) return
-    setupProc.command = ["hyprctl", "eval", shell.evalChunk(lines)]
+    var entries = []
+    for (var lid in Store.floats) {
+      var st = Store.floats[lid]
+      if (![st.x, st.y, st.w, st.h].every(isFinite)) continue
+      entries.push({ id: lid, st: st })
+    }
+    var cmd = shell.legacyPlacementCommand(entries)
+    if (!cmd.length) return
+    setupProc.command = cmd
     setupProc.running = true
   }
 
@@ -140,8 +197,9 @@ ShellRoot {
   function applyStartupRules() {
     if (shell.rulesRequested || !Store.floatsReady) return
     shell.rulesRequested = true
-    baseRuleProc.command = ["hyprctl", "eval",
-                            shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
+    baseRuleProc.command = shell.luaConfig
+      ? ["hyprctl", "eval", shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
+      : shell.legacyBaseCommand()
     baseRuleProc.running = true
   }
 
@@ -176,7 +234,9 @@ ShellRoot {
         y: y - (scr ? scr.y : 0),
         w: w, h: h
       }
-      ruleProc.command = ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st)])]
+      ruleProc.command = shell.luaConfig
+        ? ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st)])]
+        : shell.legacyPlacementCommand([{ id: id, st: st }])
       ruleProc.running = true
     }
   }

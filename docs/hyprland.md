@@ -79,13 +79,30 @@ not add a note to the float table until its placement rule has landed. Without
 that ordering the note flashes wherever Hyprland would have put it, or gets
 tiled outright.
 
-## Why `hyprctl eval` and not `hyprctl keyword`
+## Two config parsers, two routes
 
-Under Hyprland's Lua config parser `hyprctl keyword` refuses to run:
+Hyprland has two config parsers and they take window rules by completely
+different routes. Ledge checks which one is in use and picks accordingly.
+
+Under the Lua parser (Omarchy 4, and anything else opting in) `hyprctl keyword`
+refuses to run:
 
 ```
 keyword can't work with non-legacy parsers. Use eval.
 ```
+
+Under the classic parser there is no `hl.window_rule` to call, and rules go in
+as keywords instead:
+
+```bash
+hyprctl --batch "keyword windowrule float, title:^(ledge-note:.*)\$ ; keyword windowrule pin, title:^(ledge-note:.*)\$"
+```
+
+Assuming either parser strands every user of the other with popped-out notes
+that tile instead of floating. **The classic-parser path is written to the
+documented syntax but has not been run against a classic-parser Hyprland**, for
+want of one to test on. If popped-out notes tile for you, that is the first
+thing to check, and `ledge version` reports your compositor.
 
 So the rules go through `hyprctl eval`, which wraps its argument in `return
 ...`. That only takes a single expression, so several rules are applied as one

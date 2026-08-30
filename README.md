@@ -53,9 +53,14 @@ To run it straight from a clone without installing anything:
 ./bin/ledge start
 ```
 
-Requires `quickshell` and a `wlr-layer-shell` compositor. Developed on Hyprland;
-Sway, river, niri and Wayfire should work, but popped-out notes rely on Hyprland
-window rules and will float without their placement elsewhere.
+Requires `quickshell`, a `wlr-layer-shell` compositor, and a Nerd Font for the
+note controls (`ttf-jetbrains-mono-nerd` by default -- without one those icons
+render as empty boxes).
+
+Developed on Hyprland, against both of its config parsers, though only the Lua
+one has been run in anger. Sway, river, niri and Wayfire should show the strip
+fine, but popped-out notes place themselves through Hyprland window rules and
+will open unplaced elsewhere.
 
 Suggested keybindings:
 

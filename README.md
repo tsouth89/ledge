@@ -82,7 +82,7 @@ Reach for the edge. That is the whole interface.
 | click | opens and puts the caret in the text |
 | drag a dash | reorder; neighbours slide aside to show where it lands |
 | the `+` at the end of the strip | new note |
-| `SUPER + N` | new note; press it again to put the note away |
+| `SUPER + N` | new sticky on the desktop, focused and ready to type; press it again to put it away |
 | `Esc` | save and fold away |
 | scroll the strip | when there are more notes than fit |
 
@@ -95,9 +95,10 @@ palette. Hovering one names it.
 Delete takes two clicks, and deleted notes go to `trash/` rather than being
 unlinked, so a misclick is recoverable twice over.
 
-A note you open and never type into is discarded when it closes. Nothing is
-written to disk until a note has something in it, so reaching for `SUPER + N`,
-thinking better of it, and pressing it again leaves nothing behind.
+A note you open and never type into is discarded when it closes, whether it was
+open on the strip or sitting on the desktop. Nothing is written to disk until a
+note has something in it, so reaching for `SUPER + N`, thinking better of it,
+and pressing it again leaves nothing behind.
 
 ### Images
 
@@ -201,6 +202,12 @@ ledge add "call the vet at 3"
 `SUPER + N` is the one plain-SUPER letter Omarchy leaves free that actually
 means something here, and it matches the macOS original's new-note chord. Bare
 `ledge new` toggles, so the same key puts the note away again.
+
+A new note arrives as a sticky on the desktop rather than as a dash on the
+strip, because that is what asking for a sticky note means. It takes the
+keyboard so you can start typing straight away; notes that merely reappear
+never do. The `+` at the end of the strip still makes a note on the strip,
+where you already are.
 
 ## Your notes are just files
 

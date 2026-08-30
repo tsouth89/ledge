@@ -29,7 +29,7 @@ repairing after being used as test subjects, and one lost its archived flag.
 **Before changing anything**
 
 ```bash
-./test/smoke.sh          # 40 assertions, needs a Wayland session
+./test/smoke.sh          # 45 assertions, needs a Wayland session
 ledge restart            # reload after editing QML
 ledge stats              # notes, live, floating, reaped, ready
 ```

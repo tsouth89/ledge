@@ -160,11 +160,6 @@ PanelWindow {
   // keybind does not light up every monitor at once.
   Connections {
     target: Bus
-    function onNewRequested() {
-      if (!win.active) return
-      if (win.openId !== "") win.closeNow()
-      else win.createNote()
-    }
     function onPeekRequested() {
       if (!win.active) return
       win.peeked = true

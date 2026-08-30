@@ -225,6 +225,28 @@ QtObject {
     moveFloat(id, cur.x + dx, cur.y + dy, h)
   }
 
+  // A float entry can outlive the note it names. A note that has never been
+  // typed into is `pending` and deliberately has no file, so popping one out
+  // and then restarting loses the note while floats.json keeps its id. The
+  // entry then names nothing: `Float` renders nothing for it, but it counts in
+  // `ledge stats` forever and no longer has any way of being cleared.
+  //
+  // Safe to run after every scan. `notes` is authoritative by the time a scan
+  // ends, and a blank note that is merely unsaved is still a row in it, so a
+  // note that is only unwritten is never pruned.
+  function pruneFloats() {
+    if (!root.ready || !root.floatsReady) return
+    var stale = []
+    for (var id in root.floats)
+      if (indexOfId(id) < 0) stale.push(id)
+    if (!stale.length) return
+    var f = JSON.parse(JSON.stringify(root.floats))
+    for (var i = 0; i < stale.length; i++) delete f[stale[i]]
+    root.floats = f
+    root.floatIds = Object.keys(f)
+    persistFloats()
+  }
+
   function unfloat(id) {
     if (!isFloating(id)) return
     var f = JSON.parse(JSON.stringify(root.floats))
@@ -594,6 +616,7 @@ QtObject {
     applyOrder()
     recount()
     root.ready = true
+    pruneFloats()
   }
 
   function ingest(id, text) {
@@ -953,6 +976,7 @@ QtObject {
       }
       root.floatIds = Object.keys(root.floats)
       root.floatsReady = true
+      root.pruneFloats()
     }
     onFileChanged: reload()
     onLoadFailed: { root.floats = ({}); root.floatIds = []; root.floatsReady = true }

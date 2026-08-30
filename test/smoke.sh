@@ -162,6 +162,35 @@ ipc dock "$A" >/dev/null; sleep 0.8
 is "docked note is no longer floating" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"
 
+# --- a new note arrives as a sticky, not as a dash on the strip ---------------
+before=$(count)
+ipc toggleNew >/dev/null; sleep 1.5
+is "a new note is created floating" "$(python3 -c "
+import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "1"
+NEWID=$(python3 -c "
+import json;print(list(json.load(open('$DATA/floats.json')))[0])" 2>/dev/null)
+is "and takes the keyboard, so it can be typed into" "$(hyprctl -j activewindow 2>/dev/null | python3 -c "
+import sys,json
+print(json.load(sys.stdin).get('title'))" 2>/dev/null)" "ledge-note:$NEWID"
+ipc toggleNew >/dev/null; sleep 1.2
+is "pressing again puts it away" "$(python3 -c "
+import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"
+is "and a note nobody typed into leaves nothing behind" "$(count)" "$before"
+
+# --- a float entry never outlives its note ------------------------------------
+# A note that has never been typed into has no file by design, so popping one
+# out and restarting used to leave an id in floats.json naming nothing at all.
+python3 - "$DATA/floats.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+d["ghost-note-that-does-not-exist"] = {"monitor": "", "x": 10, "y": 10, "w": 300, "h": 200}
+json.dump(d, open(p, "w"))
+PY
+sleep 1.5
+is "a float entry naming no note is pruned" "$(python3 -c "
+import json;d=json.load(open('$DATA/floats.json'));print('ghost-note-that-does-not-exist' in d)" 2>/dev/null)" "False"
+
 # --- attachments --------------------------------------------------------------
 # Clipboard tests are opt-in: the clipboard is global, and a test run has no
 # business overwriting whatever the user had on it.

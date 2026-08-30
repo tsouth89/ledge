@@ -59,7 +59,13 @@ ShellRoot {
   //
   // Stored geometry is the note rectangle; the window carries a transparent
   // margin around it for the note's shadow, so convert on the way out.
-  function placementLua(id, st) {
+  // `focus` is how a brand-new note gets the keyboard. The base rule sets
+  // `no_initial_focus` so that a note reappearing never eats what you were
+  // typing elsewhere, but a note you just asked for is the one case where it
+  // should. A later rule overrides an earlier one, so this rule states an
+  // opinion every time rather than staying silent and inheriting whichever
+  // answer happens to be lying around from the last pop.
+  function placementLua(id, st, focus) {
     if (!st) return ""
     if (![st.x, st.y, st.w, st.h].every(isFinite)) return ""
     var pad = Config.floatShadowPad
@@ -67,6 +73,7 @@ ShellRoot {
                 ? ', monitor = "' + st.monitor + '"' : ""
     return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
          + monitor
+         + ', no_initial_focus = ' + (focus ? "false" : "true")
          + ', move = { ' + Math.round(st.x - pad) + ', ' + Math.round(st.y - pad) + ' }'
          + ', size = { ' + Math.round(st.w + pad * 2) + ', ' + Math.round(st.h + pad * 2) + ' } })'
   }
@@ -117,7 +124,7 @@ ShellRoot {
   // Classic parser equivalents of the same rules.
   readonly property var legacyBaseRules: [
     "float", "pin", "noinitialfocus", "noblur", "noshadow", "nodim",
-    "bordersize 0", "rounding 0", "opacity 1 1"
+    "bordersize 0", "rounding 0"
   ]
 
   function legacyKeyword(rule, match) {
@@ -155,12 +162,19 @@ ShellRoot {
     + ', tag = "-default-opacity", float = true, center = true'
     + ', no_dim = true, opacity = "1 1" })'
 
+  // Opacity is deliberately *not* set here. A popped-out note is a window, so
+  // it takes whatever translucency the desktop gives its windows -- on Omarchy
+  // that is the `default-opacity` tag every window gets. Forcing "1 1" made a
+  // note the one opaque rectangle on a translucent desktop.
+  //
+  // Dimming stays off. That is a cue for "this window is not the one you are
+  // typing in", and a sticky note is almost never the focused window; obeying
+  // it would leave every note greyed out all day.
   readonly property string baseRuleLua:
     'hl.window_rule({ match = { title = "^(ledge-note:.*)$" }'
-    + ', tag = "-default-opacity"'
     + ', float = true, pin = true, no_initial_focus = true'
     + ', no_blur = true, no_shadow = true, no_dim = true'
-    + ', border_size = 0, rounding = 0, opacity = "1 1" })'
+    + ', border_size = 0, rounding = 0 })'
 
   // The placement rule for a single note as it is popped out. Its result is
   // checked for the same reason the others are: a rule Hyprland refuses costs
@@ -261,33 +275,82 @@ ShellRoot {
 
   // Popping out: place first, then float, so the window never flashes at
   // whatever position Hyprland would have chosen for it.
+  function popNote(id, x, y, focus) {
+    if (Store.isFloating(id)) return
+    // Reuse the size this note was last given, so popping it out again does
+    // not undo a resize.
+    var prev = Store.floats[id]
+    var w = prev && prev.w ? prev.w : Config.cardWidth
+    var h = prev && prev.h ? prev.h : 200
+    ruleProc.exited.connect(function once() {
+      ruleProc.exited.disconnect(once)
+      Store.setFloating(id, x, y, w, h)
+    })
+    // Resolve to the output the note is being dropped on before writing the
+    // rule, so both agree on which monitor this is.
+    var scr = Store.screenAt(x, y)
+    var st = {
+      monitor: scr ? scr.name : "",
+      x: x - (scr ? scr.x : 0),
+      y: y - (scr ? scr.y : 0),
+      w: w, h: h
+    }
+    ruleProc.command = shell.luaConfig
+      ? ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st, focus)])]
+      : shell.legacyPlacementCommand([{ id: id, st: st }])
+    ruleProc.running = true
+  }
+
+  // The screen the pointer is on, as a Quickshell screen rather than a
+  // Hyprland monitor, since placement is done in Quickshell's coordinates.
+  function focusedScreen() {
+    var mon = Hyprland.focusedMonitor
+    for (var i = 0; i < Quickshell.screens.length; i++)
+      if (mon && Quickshell.screens[i].name === mon.name) return Quickshell.screens[i]
+    return Quickshell.screens.length ? Quickshell.screens[0] : null
+  }
+
+  // Where a brand-new note lands: on the output being looked at, stepped a
+  // little each time so that asking for several in a row does not bury them
+  // all under one another.
+  property int newCascade: 0
+  function newNotePosition() {
+    var base = shell.focusedScreen()
+    var step = shell.newCascade
+    shell.newCascade = (shell.newCascade + 1) % 6
+    return { x: (base ? base.x : 0) + 80 + step * 34,
+             y: (base ? base.y : 0) + 120 + step * 34 }
+  }
+
+  // A new note is created already popped out, because that is what asking for
+  // a sticky note means. Pressing the key again puts that note away: docked
+  // back on the strip if something was typed into it, discarded if not, which
+  // is what the strip's own new-note toggle has always done.
+  property string newFloatId: ""
+  function newFloatingNote(body) {
+    Bus.closeRequested()
+    var id = Store.create(body || "", "")
+    shell.newFloatId = id
+    var at = shell.newNotePosition()
+    shell.popNote(id, at.x, at.y, true)
+    return id
+  }
+
+  function toggleNewFloat() {
+    if (shell.newFloatId.length && Store.isFloating(shell.newFloatId)) {
+      var prev = shell.newFloatId
+      shell.newFloatId = ""
+      Store.unfloat(prev)
+      Store.discardIfBlank(prev)
+      return
+    }
+    shell.newFloatingNote("")
+  }
+
   Connections {
     target: Bus
-    function onPopRequested(id, x, y) {
-      if (Store.isFloating(id)) return
-      // Reuse the size this note was last given, so popping it out again does
-      // not undo a resize.
-      var prev = Store.floats[id]
-      var w = prev && prev.w ? prev.w : Config.cardWidth
-      var h = prev && prev.h ? prev.h : 200
-      ruleProc.exited.connect(function once() {
-        ruleProc.exited.disconnect(once)
-        Store.setFloating(id, x, y, w, h)
-      })
-      // Resolve to the output the note is being dropped on before writing the
-      // rule, so both agree on which monitor this is.
-      var scr = Store.screenAt(x, y)
-      var st = {
-        monitor: scr ? scr.name : "",
-        x: x - (scr ? scr.x : 0),
-        y: y - (scr ? scr.y : 0),
-        w: w, h: h
-      }
-      ruleProc.command = shell.luaConfig
-        ? ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st)])]
-        : shell.legacyPlacementCommand([{ id: id, st: st }])
-      ruleProc.running = true
-    }
+    function onPopRequested(id, x, y) { shell.popNote(id, x, y, false) }
+    function onNewRequested() { shell.toggleNewFloat() }
   }
 
   Variants {
@@ -407,19 +470,21 @@ ShellRoot {
     // What SUPER+N is bound to: open a fresh note, or put the open one away.
     function toggleNew(): string { Bus.newRequested(); return "ok" }
 
+    // `ledge new <text>`. Same result as the keybind, with the note already
+    // written, so the two forms of one command do not disagree about where a
+    // new note ends up.
+    function newFloating(body: string): string { return shell.newFloatingNote(body) }
+
     function pop(id: string): string {
       if (Store.indexOfId(id) < 0) return "unknown id"
       if (Store.isFloating(id)) return "already floating"
       // Land it on the focused output rather than at the desktop origin, which
       // on a multi-monitor layout may not be the screen being looked at.
-      var scr = Hyprland.focusedMonitor
-      var base = null
-      for (var i = 0; i < Quickshell.screens.length; i++)
-        if (scr && Quickshell.screens[i].name === scr.name) base = Quickshell.screens[i]
       // Through the same path the UI uses, so the placement rule is applied
       // before the window exists. Calling Store.setFloating directly here meant
       // a note popped from the CLI inherited whatever stale rule was lying
       // around from a previous pop.
+      var base = shell.focusedScreen()
       Bus.popRequested(id, (base ? base.x : 0) + 80, (base ? base.y : 0) + 120)
       Bus.closeRequested()
       return "ok"
@@ -438,6 +503,7 @@ ShellRoot {
     function dock(id: string): string {
       if (!Store.isFloating(id)) return "not floating"
       Store.unfloat(id)
+      Store.discardIfBlank(id)
       return "ok"
     }
 

@@ -86,14 +86,22 @@ FloatingWindow {
       onFloatMoveRequested: win.startSystemMove()
       onFloatResizeRequested: function (edges) { win.startSystemResize(edges) }
 
-      onDockRequested: Store.unfloat(win.noteId)
-      onDismissed: Store.unfloat(win.noteId)
+      // Putting a note away discards it if nothing was ever typed into it, the
+      // same as closing a blank note on the strip. Without this, every new
+      // sticky you thought better of leaves an "Untitled" row behind.
+      onDockRequested: win.putAway()
+      onDismissed: win.putAway()
       onDeleteRequested: {
         var id = win.noteId
         Store.unfloat(id)
         Store.remove(id)
       }
     }
+  }
+
+  function putAway() {
+    Store.unfloat(win.noteId)
+    Store.discardIfBlank(win.noteId)
   }
 
   // The compositor owns geometry now, so remember the size it settles on. There

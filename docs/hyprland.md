@@ -35,7 +35,6 @@ itself.
 ```lua
 hl.window_rule({
   match = { title = "^(ledge-note:.*)$" },
-  tag = "-default-opacity",
   float = true,
   pin = true,
   no_initial_focus = true,
@@ -44,14 +43,25 @@ hl.window_rule({
   no_dim = true,
   border_size = 0,
   rounding = 0,
-  opacity = "1 1",
 })
 ```
 
 `pin` is what makes a sticky note behave like one: it follows you between
 workspaces instead of being stranded on the one you popped it out from.
-`no_initial_focus` stops a note appearing mid-sentence and eating the rest of
+`no_initial_focus` stops a note reappearing mid-sentence and eating the rest of
 it. Border, rounding and shadow are all turned off because Ledge draws its own.
+
+Opacity is deliberately absent, so a note is as translucent as the desktop makes
+its windows. On Omarchy that is the `default-opacity` tag every window gets, and
+a note picks it up like anything else. Dimming is the one thing turned off:
+that cue means "this is not the window you are typing in", and since a sticky
+note almost never is, obeying it would leave every note greyed out all day.
+
+The per-note placement rule below restates `no_initial_focus`, because a note
+you just asked for with `SUPER + N` is the one case where a note *should* take
+the keyboard. A later rule overrides an earlier one, so the placement rule
+always states an opinion rather than inheriting whatever the last pop left
+behind.
 
 Placement is a second rule per note, carrying the position and size from
 `floats.json`:
@@ -60,6 +70,7 @@ Placement is a second rule per note, carrying the position and size from
 hl.window_rule({
   match = { title = "^(ledge-note:<id>)$" },
   monitor = "<output name>",
+  no_initial_focus = true,   -- false for a note just created by SUPER + N
   move = { x, y },
   size = { w, h },
 })

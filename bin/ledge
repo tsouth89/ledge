@@ -44,8 +44,9 @@ usage() {
 ledge - sticky notes that live on the edge of the screen
 
   ledge start | stop | restart | status
-  ledge new [text]        create a note and open it; bare `ledge new` toggles,
-                          so pressing the same key again puts it away
+  ledge new [text]        create a note as a sticky on the desktop; bare
+                          `ledge new` toggles, so pressing the same key again
+                          puts it away
   ledge add [text]        append to the most recent note (reads stdin)
   ledge list              every note as JSON
   ledge all               open the All Notes window (search, archive, trash)
@@ -101,7 +102,7 @@ case "$cmd" in
   # Given text it always creates, so scripts and pipes behave predictably.
   new)
     if [[ $# -eq 0 && ! -p /dev/stdin && ! -f /dev/stdin ]]; then ipc toggleNew
-    else ipc create "$(body_from "$@")"; fi ;;
+    else ipc newFloating "$(body_from "$@")"; fi ;;
   add)     ipc append "$(body_from "$@")" ;;
   list)    ipc list ;;
   all)     ipc all ;;

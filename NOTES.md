@@ -359,15 +359,61 @@ leave before enter, and without the re-check the strip latches open.
 
 ## Next, roughly in order
 
-1. **Markup coverage** - tables and fenced code blocks are deliberately absent;
-   both need block layout, which the same-width invariant forbids. behind the `styling` flag. The approach that works
-   without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
-   Only aligns if bold and regular share advance widths, i.e. a monospace font.
-   Note that in the config docs.
-2. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
+Reordered 2026-08-30 after an audit against "could Brandon use this as his only
+notes app". The Omarchy integration is in good shape and is not what is holding
+it back; the gaps are all in what you can do with a note once you have written
+one.
+
+1. **Links are not clickable.** `Markup.js` already finds bare URLs and colours
+   them, but the styled layer is a `Text` in RichText mode painted *behind* a
+   transparent `TextEdit`, so every click lands on the editor and the link is
+   decoration. For a notes app that mostly collects links this is the biggest
+   single gap. The fix has to respect the same-width invariant: hit-test by
+   mapping the click through `editor.positionAt()` to a character index, look
+   up which URL span contains it, and `xdg-open` that. Ctrl-click, so ordinary
+   clicks still place the caret.
+2. **Every popped-out note is pinned to all workspaces.** `pin = true` is in
+   the base rule with no per-note say in it. Fine for a shopping list, wrong
+   for a note that belongs to one project. Wants a frontmatter flag applied as
+   a per-note rule; the per-note rule pipeline already exists and this is
+   mostly plumbing.
+3. **No keyboard route to pop a note out.** Reaching a note by keyboard is
+   already solved: `SUPER + SHIFT + L`, type, Enter, and the Library has
+   search, up/down, Enter and Escape wired up. But popping needs the pointer or
+   an id you have to look up. Cheapest fix is a modifier on the Library's Enter.
+4. **Reminders cannot be snoozed.** The notification carries one action,
+   `open=Open note`. Once it fires the reminder is cleared, so "not now" means
+   retyping the reminder. Add a snooze action alongside open.
+5. **No "copy note to clipboard".** Small, and it is the thing you most want to
+   do with a note after writing it.
+6. **Markup coverage.** Tables and fenced code blocks are deliberately absent:
+   both need block layout, and the same-width invariant forbids it. The invariant
+   is what keeps the caret sitting on the right glyph, so this stays out until
+   there is a design that does not break it. Leave unless it actually bites.
+7. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
-3. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+8. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+
+### Omarchy fit, checked rather than assumed
+
+All verified on this box on 2026-08-30, and all already correct:
+
+- Theme follows `omarchy theme set` live, including the font, from the same
+  `colors.toml` / `shell.toml` the Omarchy shell reads
+- Reminders notify through `notify-send --app-name=Ledge --icon=ledge`
+- Keybinds go in through `o.bind` with descriptions, so they appear in
+  Omarchy's own keybindings menu
+- Desktop entry has actions, the systemd unit and autostart both work, the
+  PKGBUILD ships the whole shell tree
+- Popped notes now take the desktop's `default-opacity` instead of forcing
+  themselves opaque
+- `no_blur` on the note rule is not a mismatch: `decoration:blur:enabled` is
+  false on this box, so there is no frosting for a note to be missing
+
+One thing that looked like a gap and is not: clicking a checkbox does *not*
+clobber the editor's undo history. `Note.qml` edits the single character in
+place with `remove`/`insert` precisely to avoid that, and says so.
 
 ## Testing
 

@@ -105,7 +105,7 @@ ipc restore "$TRASHED" >/dev/null; sleep 1.2
 is "restored note is back" "$(count)" "4"
 
 # --- reminders ----------------------------------------------------------------
-R=$(ipc remind "$A" 90m)
+ipc remind "$A" 90m >/dev/null
 settle
 is "relative reminder is accepted" "$(grep -c '^reminder: ' "$DATA/notes/$A.md")" "1"
 ipc remind "$A" clear >/dev/null; settle

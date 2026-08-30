@@ -21,6 +21,9 @@ Item {
 
   property bool peeked: false
   property bool open: false
+  // A popped-out note. Always open, never part of the strip, and dragged by
+  // its colour band rather than reordered.
+  property bool floating: false
   property bool editing: false
   property bool dragging: false
 
@@ -28,6 +31,11 @@ Item {
   signal activated()
   signal dismissed()
   signal editingRequested()
+  signal popOutRequested()
+  signal dockRequested()
+  signal floatDragged(real dx, real dy)
+  signal floatDragEnded()
+  signal deleteRequested()
   signal dragStarted()
   signal dragMoved(real dy)
   signal dragEnded()
@@ -38,7 +46,7 @@ Item {
 
   // Which side faces the screen edge. The band lives there and the note grows
   // away from it, so the anchored side never moves.
-  readonly property bool bandRight: !Config.onLeft
+  readonly property bool bandRight: floating ? false : !Config.onLeft
   readonly property int pad: 12
   readonly property int bandWidth: 6
   readonly property int radius: 9
@@ -47,8 +55,8 @@ Item {
                                              Math.min(Config.cardMaxHeight,
                                                       Math.ceil(editor.contentHeight) + actions.height + 6 + pad * 2))
 
-  implicitWidth: open ? Config.cardWidth : (peeked ? Config.tabPeek : Config.tabRest)
-  implicitHeight: open ? openHeight : Config.tabHeight
+  implicitWidth: floating || open ? Config.cardWidth : (peeked ? Config.tabPeek : Config.tabRest)
+  implicitHeight: floating || open ? openHeight : Config.tabHeight
 
   // Staggered on the way out so the strip unfurls in sequence rather than
   // snapping open as a block. That pause is what reads as "reaching for it".
@@ -140,6 +148,28 @@ Item {
         anchors.right: note.bandRight ? parent.right : undefined
         anchors.left: note.bandRight ? parent.left : undefined
       }
+
+      // Grab handle for a popped-out note. The band is the obvious thing to
+      // take hold of, and using it keeps the whole text area free for
+      // selecting text rather than accidentally throwing the note across the
+      // screen.
+      DragHandler {
+        enabled: note.floating
+        target: null
+        cursorShape: Qt.OpenHandCursor
+        property real lastX: 0
+        property real lastY: 0
+        onActiveChanged: {
+          if (active) { lastX = 0; lastY = 0 }
+          else note.floatDragEnded()
+        }
+        onTranslationChanged: {
+          if (!active) return
+          note.floatDragged(translation.x - lastX, translation.y - lastY)
+          lastX = translation.x
+          lastY = translation.y
+        }
+      }
     }
   }
 
@@ -150,7 +180,7 @@ Item {
     shadowColor: Qt.rgba(0, 0, 0, Theme.dark ? 0.5 : 0.18)
     shadowBlur: 0.8
     shadowVerticalOffset: 4
-    opacity: note.open ? 1 : 0
+    opacity: note.open || note.floating ? 1 : 0
     visible: opacity > 0.01
     Behavior on opacity { NumberAnimation { duration: 200 } }
     z: -1
@@ -212,59 +242,112 @@ Item {
       }
     }
 
+    // Controls. Visible the whole time the note is open, not on hover.
+    //
+    // These were hover-only and unlabelled, which meant there was no way to
+    // discover that a note could be deleted at all. A control you cannot find
+    // is a missing feature.
     Item {
       id: actions
       width: parent.width
-      height: 14
+      height: 16
+
+      property string hint: ""
+      // Deleting takes two clicks. The note does go to the trash rather than
+      // being unlinked, but it still vanishes from the screen, and a stray
+      // click on a 12px target should not make anything disappear.
+      property bool deleteArmed: false
+
+      Timer {
+        id: disarm
+        interval: 2600
+        onTriggered: { actions.deleteArmed = false; if (actions.hint === "Click again") actions.hint = "" }
+      }
 
       Row {
+        id: controls
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 9
-        opacity: hover.hovered ? 1 : 0
-        visible: opacity > 0.01
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        spacing: 10
 
         Repeater {
           model: [
-            { glyph: "", act: "pin" },
-            { glyph: "", act: "archive" },
-            { glyph: "", act: "delete" }
+            { glyph: note.floating ? "\uf2d2" : "\uf08e",
+              act: "pop",
+              tip: note.floating ? "Dock" : "Pop out" },
+            { glyph: "\uf08d", act: "pin",     tip: "Pin" },
+            { glyph: "\uf187", act: "archive", tip: "Archive" },
+            { glyph: "\uf1f8", act: "delete",  tip: "Delete" }
           ]
           delegate: Text {
             required property var modelData
             text: modelData.glyph
             font.family: Theme.fontFamily
-            font.pixelSize: 11
-            color: Theme.withAlpha(note.ink, hit.containsMouse ? 1.0 : 0.4)
+            font.pixelSize: 12
+            color: {
+              if (modelData.act === "delete" && actions.deleteArmed) return Theme.urgent
+              var lit = hit.containsMouse ? 1.0
+                        : (modelData.act === "pin" && note.pinned ? 0.85 : 0.42)
+              return Theme.withAlpha(note.ink, lit)
+            }
 
             MouseArea {
               id: hit
               anchors.fill: parent
-              anchors.margins: -4
+              anchors.margins: -5
               hoverEnabled: true
+              onEntered: actions.hint = actions.deleteArmed && modelData.act === "delete"
+                                        ? "Click again" : modelData.tip
+              onExited: if (actions.hint === modelData.tip) actions.hint = ""
               onClicked: {
-                if (modelData.act === "pin") Store.togglePinned(note.noteId)
-                else if (modelData.act === "archive") { Store.toggleArchived(note.noteId); note.dismissed() }
-                else { Store.remove(note.noteId); note.dismissed() }
+                if (modelData.act === "pop") {
+                  if (note.floating) note.dockRequested()
+                  else note.popOutRequested()
+                  return
+                }
+                if (modelData.act === "pin") { Store.togglePinned(note.noteId); return }
+                if (modelData.act === "archive") { Store.toggleArchived(note.noteId); note.dismissed(); return }
+                if (!actions.deleteArmed) {
+                  actions.deleteArmed = true
+                  actions.hint = "Click again"
+                  disarm.restart()
+                  return
+                }
+                disarm.stop()
+                actions.deleteArmed = false
+                note.deleteRequested()
               }
             }
           }
         }
       }
 
+      // Names the control under the cursor. Cheaper than a floating tooltip
+      // and it cannot fall off the edge of the screen.
+      Text {
+        anchors.left: controls.right
+        anchors.leftMargin: 10
+        anchors.verticalCenter: parent.verticalCenter
+        text: actions.hint
+        font.family: Theme.fontFamily
+        font.pixelSize: 10
+        color: Theme.withAlpha(note.ink, 0.55)
+        opacity: actions.hint.length ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+      }
+
       Rectangle {
         width: 10; height: 10; radius: 5
         color: note.tint
-        opacity: hover.hovered ? 1 : 0
-        visible: opacity > 0.01
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        Behavior on opacity { NumberAnimation { duration: 150 } }
 
         MouseArea {
           anchors.fill: parent
-          anchors.margins: -4
+          anchors.margins: -5
+          hoverEnabled: true
+          onEntered: actions.hint = "Colour"
+          onExited: if (actions.hint === "Colour") actions.hint = ""
           onClicked: {
             var keys = Theme.swatchKeys
             Store.setColor(note.noteId, keys[(keys.indexOf(note.colorKey) + 1) % keys.length])
@@ -285,13 +368,37 @@ Item {
       TextArea {
         id: editor
         width: scroller.width
-        enabled: note.open
+        enabled: note.open || note.floating
 
-        text: note.body
-        // Guard against the model write coming back around and moving the
-        // cursor while this same note is still being typed into.
-        property string boundId: note.noteId
-        onTextChanged: if (boundId === note.noteId) Store.setBody(note.noteId, text)
+        Component.onCompleted: loadFrom(note.noteId)
+
+        // Deliberately NOT `text: note.body`.
+        //
+        // Delegates are recycled: when the model reorders or a note is
+        // discarded, this same editor gets rebound to a different note. With a
+        // declarative binding the editor's contents and the note it believes it
+        // is editing update in the same batch, so a guard written as another
+        // binding is worthless -- both sides change together and the stale text
+        // gets written to the new note's id. That is how a note ended up
+        // holding one note's keystrokes concatenated with another's body.
+        //
+        // So the load is explicit and one-way, and write-back is suppressed
+        // while it happens.
+        property string boundId: ""
+        property bool syncing: false
+
+        function loadFrom(id) {
+          syncing = true
+          boundId = id
+          var n = id.length ? Store.get(id) : null
+          text = n ? String(n.body || "") : ""
+          syncing = false
+        }
+
+        onTextChanged: {
+          if (syncing || boundId !== note.noteId) return
+          Store.setBody(note.noteId, text)
+        }
 
         wrapMode: TextEdit.Wrap
         textFormat: TextEdit.PlainText
@@ -309,12 +416,24 @@ Item {
         background: null
         padding: 0
 
-        focus: note.editing
+        focus: note.editing || note.floating
         onActiveFocusChanged: if (activeFocus) note.editingRequested()
 
         Keys.onEscapePressed: {
           Store.flushPending()
           note.dismissed()
+        }
+
+        // Rebind when this delegate is handed a different note, and pick up
+        // edits made to the file by anything else -- but never yank text out
+        // from under a caret that is currently in it.
+        Connections {
+          target: note
+          function onNoteIdChanged() { editor.loadFrom(note.noteId) }
+          function onBodyChanged() {
+            if (editor.boundId !== note.noteId) { editor.loadFrom(note.noteId); return }
+            if (!editor.activeFocus && editor.text !== note.body) editor.loadFrom(note.noteId)
+          }
         }
 
         // Toggle a `- [ ]` checkbox by clicking its marker. Pure text editing,
@@ -353,12 +472,12 @@ Item {
   TapHandler {
     // Let the editor own the pointer once the note is open, so clicking into
     // the text places the caret instead of re-triggering the open.
-    enabled: !note.open
+    enabled: !note.open && !note.floating
     onTapped: note.activated()
   }
 
   DragHandler {
-    enabled: !note.open
+    enabled: !note.open && !note.floating
     yAxis.enabled: true
     xAxis.enabled: false
     target: null

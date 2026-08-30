@@ -43,12 +43,15 @@ usage() {
 ledge - sticky notes that live on the edge of the screen
 
   ledge start | stop | restart | status
-  ledge new [text]        create a note and open it (reads stdin if no text)
+  ledge new [text]        create a note and open it; bare `ledge new` toggles,
+                          so pressing the same key again puts it away
   ledge add [text]        append to the most recent note (reads stdin)
   ledge list              every note as JSON
   ledge open <id>         open one note for editing
   ledge rm <id>           move a note to the trash
   ledge move <id> <n>     move a note to position n on the strip (0 is first)
+  ledge pop <id>          detach a note to float on the desktop
+  ledge dock <id>         send a floating note back to the strip
   ledge peek              fan the strip open without opening a note
   ledge close             collapse the strip
   ledge log               tail the running instance's log
@@ -80,11 +83,17 @@ case "$cmd" in
   restart) running && qs kill --path "$SHELL_DIR" >/dev/null 2>&1 || true; sleep 0.4; start ;;
   status)
     if running; then echo "running  (shell: $SHELL_DIR)"; else echo "stopped  (shell: $SHELL_DIR)"; fi ;;
-  new)     ipc create "$(body_from "$@")" ;;
+  # Bare `ledge new` toggles: it opens a blank note, or closes the open one.
+  # Given text it always creates, so scripts and pipes behave predictably.
+  new)
+    if [[ $# -eq 0 && ! -p /dev/stdin && ! -f /dev/stdin ]]; then ipc toggleNew
+    else ipc create "$(body_from "$@")"; fi ;;
   add)     ipc append "$(body_from "$@")" ;;
   list)    ipc list ;;
   open)    [[ $# -ge 1 ]] || { echo "ledge: open needs a note id" >&2; exit 2; }; ipc open "$1" ;;
   rm)      [[ $# -ge 1 ]] || { echo "ledge: rm needs a note id" >&2; exit 2; }; ipc remove "$1" ;;
+  pop)     [[ $# -ge 1 ]] || { echo "ledge: pop needs a note id" >&2; exit 2; }; ipc pop "$1" ;;
+  dock)    [[ $# -ge 1 ]] || { echo "ledge: dock needs a note id" >&2; exit 2; }; ipc dock "$1" ;;
   move)    [[ $# -ge 2 ]] || { echo "ledge: move needs a note id and a position" >&2; exit 2; }; ipc move "$1" "$2" ;;
   peek)    ipc peek ;;
   close)   ipc close ;;

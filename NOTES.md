@@ -98,6 +98,22 @@ for the neighbours); the model is touched once, on drop.
 still a row in the model but has zero height on screen, so raw indices and
 on-screen positions diverge the moment anything is archived.
 
+**Never bind an editor's `text` to model data on a recycled delegate.** Delegates
+get rebound when the model reorders or a row is removed. With `text: note.body`
+the editor's contents and the note it thinks it is editing update in the *same
+batch*, so a guard written as another binding (`property string boundId:
+note.noteId`) is worthless -- both sides change together and stale text gets
+written to the new note's id. This actually corrupted a note, concatenating one
+note's keystrokes onto another's body. The load is now explicit, one-way, and
+suppressed during the sync. Do not "simplify" it back into a binding.
+
+**One full-screen surface per floating note, not one small surface repositioned.**
+A layer surface moved by changing its margins needs a compositor reconfigure per
+frame of a drag. Full-screen click-through surfaces with the input region masked
+to the note mean dragging is a plain x/y change in a surface that never moves.
+Costs a transparent full-screen surface per popped note; fine for the handful
+anyone detaches, revisit if that stops being true.
+
 **`hideDelay` is load-bearing.** Crossing the gap between a dash and the note it
 became reads as a pointer leave. Without the grace period the note snaps shut
 mid-reach. Same for the re-check inside `closeTimer`: a fast cursor can deliver
@@ -114,6 +130,9 @@ leave before enter, and without the re-check the strip latches open.
 - IPC + CLI (`new`/`add`/`list`/`open`/`rm`/`move`/`peek`/`close`)
 - Drag reorder, persisted to `order` and verified across a restart
 - `+` at the end of the strip for a new note, and `SUPER + N` globally
+- Pop a note out to float on the desktop, drag it by the band, dock it back
+- Controls always visible on an open note, two-step delete, blank notes discarded
+- `SUPER + N` toggles: opens a blank note, or puts the open one away
 - Config hot reload
 
 ## Next, roughly in order

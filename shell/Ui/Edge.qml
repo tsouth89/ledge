@@ -41,7 +41,9 @@ PanelWindow {
   readonly property int tabWidth: peeked || openId !== "" ? Config.tabPeek : Config.tabRest
   readonly property int slotStep: Config.tabHeight + Config.tabGap
 
-  visible: active && Store.ready && Store.liveCount > 0
+  // Visible even with no notes: the + at the end of the strip is how you
+  // make the first one, so it can never be the thing that is missing.
+  visible: active && Store.ready
 
   WlrLayershell.namespace: "ledge"
   WlrLayershell.layer: Config.layer === "overlay" ? WlrLayer.Overlay : WlrLayer.Top
@@ -75,10 +77,14 @@ PanelWindow {
   function cancelClose() { closeTimer.stop() }
 
   function closeNow() {
+    var was = win.openId
     win.peeked = false
     win.openId = ""
     win.editing = false
     win.hoveredId = ""
+    // Discard before flushing, so a note nobody typed into is never written
+    // only to be deleted a moment later.
+    if (was.length) Store.discardIfBlank(was)
     Store.flushPending()
   }
 
@@ -94,8 +100,10 @@ PanelWindow {
   // row in the model but occupies no height on screen.
   function visibleIndices() {
     var out = []
-    for (var i = 0; i < Store.notes.count; i++)
-      if (!Store.notes.get(i).archived) out.push(i)
+    for (var i = 0; i < Store.notes.count; i++) {
+      var n = Store.notes.get(i)
+      if (!n.archived && !Store.isFloating(n.noteId)) out.push(i)
+    }
     return out
   }
 
@@ -133,6 +141,11 @@ PanelWindow {
   // keybind does not light up every monitor at once.
   Connections {
     target: Bus
+    function onNewRequested() {
+      if (!win.active) return
+      if (win.openId !== "") win.closeNow()
+      else win.createNote()
+    }
     function onPeekRequested() {
       if (!win.active) return
       win.peeked = true
@@ -248,8 +261,9 @@ PanelWindow {
             required property bool pinned
 
             width: column.width
-            height: archived ? 0 : Config.tabHeight
-            visible: !archived
+            readonly property bool hidden: archived || Store.isFloating(noteId)
+            height: hidden ? 0 : Config.tabHeight
+            visible: !hidden
             z: noteItem.open ? 20 : (column.dragOrigin === index ? 15 : 0)
 
             // How far this note steps aside to open a gap where the dragged
@@ -326,6 +340,21 @@ PanelWindow {
               }
               onEditingRequested: win.editing = true
               onDismissed: win.closeNow()
+              onDeleteRequested: {
+                var id = slot.noteId
+                win.closeNow()
+                Store.remove(id)
+              }
+              onPopOutRequested: {
+                var id = slot.noteId
+                // Drop it roughly where the note already is, so it does not
+                // teleport across the screen when it detaches.
+                var top = strip.y - strip.contentY + slot.y
+                Store.setFloating(id,
+                                  win.onLeft ? 60 : Math.max(40, win.screen.width - Config.cardWidth - 80),
+                                  Math.max(40, Math.min(win.screen.height - 200, top)))
+                win.closeNow()
+              }
 
               // Reordering the model mid-drag would rebind this very delegate
               // to a different note, and the pointer grab would carry on

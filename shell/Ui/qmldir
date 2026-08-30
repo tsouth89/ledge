@@ -1,3 +1,4 @@
 module qs.Ui
 Edge 1.0 Edge.qml
+Float 1.0 Float.qml
 Note 1.0 Note.qml

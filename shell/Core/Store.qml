@@ -22,6 +22,7 @@ QtObject {
   readonly property string notesDir: dataDir + "/notes"
   readonly property string trashDir: dataDir + "/trash"
   readonly property string orderPath: dataDir + "/order"
+  readonly property string floatsPath: dataDir + "/floats.json"
 
   readonly property ListModel notes: ListModel {}
 
@@ -37,6 +38,54 @@ QtObject {
     var c = 0
     for (var i = 0; i < notes.count; i++) if (!notes.get(i).archived) c++
     root.liveCount = c
+  }
+
+  // Popped-out notes: id -> { x, y, screen }.
+  //
+  // Kept out of the note files entirely. Position changes on every frame of a
+  // drag, and rewriting a note's frontmatter that often would churn the file,
+  // wake every watcher, and bury real edits in a sync tool's history. This is
+  // volatile window state, not part of what the note says.
+  property var floats: ({})
+  property var floatIds: []
+
+  function isFloating(id) { return root.floats[id] !== undefined }
+
+  function floatState(id) { return root.floats[id] || null }
+
+  function setFloating(id, x, y, screenName) {
+    var f = JSON.parse(JSON.stringify(root.floats))
+    f[id] = { x: Math.round(x), y: Math.round(y), screen: screenName || "" }
+    root.floats = f
+    root.floatIds = Object.keys(f)
+    persistFloats()
+  }
+
+  function moveFloat(id, x, y) {
+    if (!isFloating(id)) return
+    var f = JSON.parse(JSON.stringify(root.floats))
+    f[id].x = Math.round(x)
+    f[id].y = Math.round(y)
+    root.floats = f
+    floatSaveTimer.restart()
+  }
+
+  function unfloat(id) {
+    if (!isFloating(id)) return
+    var f = JSON.parse(JSON.stringify(root.floats))
+    delete f[id]
+    root.floats = f
+    root.floatIds = Object.keys(f)
+    persistFloats()
+  }
+
+  function persistFloats() {
+    floatsFile.setText(JSON.stringify(root.floats, null, 2) + "\n")
+  }
+
+  property Timer floatSaveTimer: Timer {
+    interval: 350
+    onTriggered: root.persistFloats()
   }
 
   signal noteAdded(string id)
@@ -136,8 +185,12 @@ QtObject {
 
   // ---------------------------------------------------------- mutation
 
+  // A new note exists in the model but not yet on disk. Nothing is written
+  // until it has content, so opening the strip and changing your mind leaves no
+  // file behind and no entry in the trash.
   function create(body, color) {
     var id = root.newId()
+    var hasBody = String(body || "").replace(/\s+/g, "").length > 0
     notes.append({
       noteId: id,
       file: root.notesDir + "/" + id + ".md",
@@ -149,14 +202,39 @@ QtObject {
       styled: true,
       reminder: "",
       created: new Date().toISOString(),
-      loaded: true
+      loaded: true,
+      pending: !hasBody
     })
     root.order = root.liveIds()
     persistOrder()
     root.noteAdded(id)
     recount()
-    save(id)
+    if (hasBody) save(id)
     return id
+  }
+
+  function isBlank(id) {
+    var n = get(id)
+    return !n || String(n.body || "").replace(/\s+/g, "").length === 0
+  }
+
+  // Drop a note that was never written to. Unlinked outright rather than
+  // trashed: there is nothing in it to recover, and a trash full of empty files
+  // is just noise.
+  function discardIfBlank(id) {
+    var i = indexOfId(id)
+    if (i < 0 || !isBlank(id)) return false
+    var n = notes.get(i)
+    var wasPending = n.pending === true
+    var file = n.file
+    notes.remove(i)
+    if (isFloating(id)) unfloat(id)
+    root.order = root.liveIds()
+    persistOrder()
+    recount()
+    if (!wasPending) purgeProc.exec(["rm", "-f", file])
+    root.noteRemoved(id)
+    return true
   }
 
   function update(id, fields) {
@@ -170,6 +248,8 @@ QtObject {
     var i = indexOfId(id)
     if (i < 0 || notes.get(i).body === body) return
     notes.setProperty(i, "body", body)
+    if (notes.get(i).pending && String(body || "").replace(/\s+/g, "").length > 0)
+      notes.setProperty(i, "pending", false)
     saveDebounced(id)
   }
 
@@ -202,6 +282,7 @@ QtObject {
     if (i < 0) return
     var file = notes.get(i).file
     notes.remove(i)
+    if (isFloating(id)) unfloat(id)
     root.order = root.liveIds()
     persistOrder()
     recount()
@@ -238,7 +319,7 @@ QtObject {
 
   function save(id) {
     var n = get(id)
-    if (!n || !n.loaded) return
+    if (!n || !n.loaded || n.pending) return
     var view = viewFor(id)
     if (view) view.setText(serializeNote(n))
   }
@@ -297,13 +378,16 @@ QtObject {
         styled: true,
         reminder: "",
         created: "",
-        loaded: false
+        loaded: false,
+        pending: false
       })
     }
 
     for (var j = notes.count - 1; j >= 0; j--) {
       var n = notes.get(j)
-      if (!seen[n.noteId] && n.loaded) notes.remove(j)
+      // `pending` notes have no file by design; only reap rows whose file was
+      // there and has since gone away.
+      if (!seen[n.noteId] && n.loaded && !n.pending) notes.remove(j)
     }
 
     applyOrder()
@@ -327,7 +411,8 @@ QtObject {
       styled: m["styled"] === undefined ? true : truthy(m["styled"]),
       reminder: m["reminder"] || "",
       created: m["created"] || "",
-      loaded: true
+      loaded: true,
+      pending: false
     })
     recount()
   }
@@ -335,6 +420,7 @@ QtObject {
   // ------------------------------------------------------------- files
 
   property Process trashProc: Process {}
+  property Process purgeProc: Process {}
 
   property Process scanProc: Process {
     command: ["bash", "-c",
@@ -355,6 +441,24 @@ QtObject {
     watchChanges: true
     printErrors: false
     onFileChanged: root.rescan()
+  }
+
+  property FileView floatsFile: FileView {
+    path: root.floatsPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text() || "{}")
+        root.floats = (parsed && typeof parsed === "object") ? parsed : ({})
+      } catch (e) {
+        root.floats = ({})
+      }
+      root.floatIds = Object.keys(root.floats)
+    }
+    onFileChanged: reload()
+    onLoadFailed: { root.floats = ({}); root.floatIds = [] }
   }
 
   property FileView orderFile: FileView {

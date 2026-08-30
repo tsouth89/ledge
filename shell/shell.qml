@@ -28,6 +28,12 @@ ShellRoot {
     }
   }
 
+  // Popped-out notes. One surface each, driven by the store's float table.
+  Variants {
+    model: Store.floatIds
+    delegate: Float {}
+  }
+
   // ------------------------------------------------------------------ ipc
   //
   //   ledge new "text"     create a note and open it
@@ -43,6 +49,24 @@ ShellRoot {
       var id = Store.create(body || "", "")
       Bus.openRequested(id)
       return id
+    }
+
+    // What SUPER+N is bound to: open a fresh note, or put the open one away.
+    function toggleNew(): string { Bus.newRequested(); return "ok" }
+
+    function pop(id: string): string {
+      if (Store.indexOfId(id) < 0) return "unknown id"
+      if (Store.isFloating(id)) return "already floating"
+      var scr = Hyprland.focusedMonitor
+      Store.setFloating(id, 80, 120, scr ? scr.name : "")
+      Bus.closeRequested()
+      return "ok"
+    }
+
+    function dock(id: string): string {
+      if (!Store.isFloating(id)) return "not floating"
+      Store.unfloat(id)
+      return "ok"
     }
 
     function peek(): string { Bus.peekRequested(); return "ok" }

@@ -51,16 +51,32 @@ Reach for the edge. That is the whole interface.
 | click | opens and puts the caret in the text |
 | drag a dash | reorder; neighbours slide aside to show where it lands |
 | the `+` at the end of the strip | new note |
-| `SUPER + N` | new note, from anywhere |
+| `SUPER + N` | new note; press it again to put the note away |
 | `Esc` | save and fold away |
 | scroll the strip | when there are more notes than fit |
 
 Hovering along an already-open strip swaps straight to the next note rather than
 making you wait out the dwell again.
 
-An open note shows its controls on hover: pin, archive, delete, and a swatch
-that cycles its colour. Deleted notes move to `trash/` rather than being
-unlinked, so a misclick is recoverable.
+An open note shows its controls the whole time it is open: pop out, pin,
+archive, delete, and a swatch that cycles its colour. Hovering one names it.
+Delete takes two clicks, and deleted notes go to `trash/` rather than being
+unlinked, so a misclick is recoverable twice over.
+
+A note you open and never type into is discarded when it closes. Nothing is
+written to disk until a note has something in it, so reaching for `SUPER + N`,
+thinking better of it, and pressing it again leaves nothing behind.
+
+### Popping a note out
+
+Notes do not have to stay on the edge. Pop one out and it detaches to float
+wherever you put it on the desktop, dragged by its colour band. It leaves the
+strip while it is out, and the dock control sends it back. Positions persist in
+`floats.json` and are clamped on load, so a note parked near an edge cannot end
+up unreachable after a monitor change.
+
+A floating note is still a layer surface, not a window: no taskbar entry, no
+tiling, no focus stealing.
 
 ## Command line
 
@@ -72,6 +88,8 @@ ledge list              every note as JSON
 ledge open <id>         open one note for editing
 ledge rm <id>           move a note to the trash
 ledge move <id> <n>     move a note to position n (0 is first)
+ledge pop <id>          detach a note to float on the desktop
+ledge dock <id>         send a floating note back to the strip
 ledge peek              fan the strip open
 ledge close             collapse it
 ```
@@ -98,6 +116,7 @@ means something here, and it matches the macOS original's new-note chord.
 ~/.local/share/ledge/
 ├── notes/<id>.md     one note per file, YAML frontmatter
 ├── order             note ids, one per line, display order
+├── floats.json       positions of popped-out notes
 └── trash/            deleted notes
 ```
 
@@ -115,7 +134,7 @@ Grep them, commit them, sync them, point Obsidian at them, edit them in Neovim
 while Ledge is running: the strip watches the directory and picks up outside
 edits live.
 
-Ordering is deliberately *not* in the frontmatter. Dragging a note to a new spot
+Neither ordering nor float position lives in the frontmatter. Dragging a note to a new spot
 rewrites one small `order` file rather than touching every note below it, which
 keeps reorders out of the way in git and in any file-sync tool.
 

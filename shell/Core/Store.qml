@@ -316,6 +316,25 @@ QtObject {
     saveDebounced(id)
   }
 
+  // ISO 8601, or "" to clear. Stored in the note's frontmatter because unlike
+  // window geometry a reminder is genuinely part of what the note says, and
+  // should survive being copied to another machine.
+  function setReminder(id, iso) {
+    update(id, { reminder: String(iso || "") })
+  }
+
+  function dueReminders(nowMs) {
+    var out = []
+    for (var i = 0; i < notes.count; i++) {
+      var n = notes.get(i)
+      if (!n.reminder || !n.reminder.length) continue
+      var at = Date.parse(n.reminder)
+      if (!isFinite(at) || at > nowMs) continue
+      out.push({ id: n.noteId, title: deriveTitle(n.body, n.title), body: String(n.body || "") })
+    }
+    return out
+  }
+
   function setColor(id, color) {
     update(id, { color: Theme.swatchKey(color) })
   }
@@ -559,6 +578,19 @@ QtObject {
     if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago")
     var days = Math.round(hours / 24)
     return days + (days === 1 ? " day ago" : " days ago")
+  }
+
+  // How far off a reminder is, for the note's own hint text.
+  function relativeFuture(iso) {
+    var at = Date.parse(iso)
+    if (!isFinite(at)) return ""
+    var mins = Math.round((at - Date.now()) / 60000)
+    if (mins <= 0) return "due"
+    if (mins < 60) return "in " + mins + (mins === 1 ? " minute" : " minutes")
+    var hours = Math.round(mins / 60)
+    if (hours < 24) return "in " + hours + (hours === 1 ? " hour" : " hours")
+    var days = Math.round(hours / 24)
+    return "in " + days + (days === 1 ? " day" : " days")
   }
 
   // ------------------------------------------------------------- export

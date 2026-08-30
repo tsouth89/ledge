@@ -42,6 +42,14 @@ Item {
   signal dragMoved(real dy)
   signal dragEnded()
 
+  // Read straight off the store rather than passed in, so a reminder set from
+  // the CLI lights the control up without the strip being rebuilt.
+  readonly property string reminderAt: {
+    var n = Store.get(noteId)
+    return n ? String(n.reminder || "") : ""
+  }
+  readonly property bool hasReminder: reminderAt.length > 0
+
   readonly property color tint: Theme.tabColor(colorKey)
   readonly property color paperColor: Theme.cardColor(colorKey)
   readonly property color ink: Theme.cardTextColor(colorKey)
@@ -266,6 +274,10 @@ Item {
       // being unlinked, but it still vanishes from the screen, and a stray
       // click on a 12px target should not make anything disappear.
       property bool deleteArmed: false
+      // Swaps the control row for a row of reminder choices. Inline rather than
+      // a popup: a note is already a small surface, and a menu floating off one
+      // would need its own input region on the strip's layer.
+      property bool pickingReminder: false
 
       Timer {
         id: disarm
@@ -278,6 +290,7 @@ Item {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         spacing: 10
+        visible: !actions.pickingReminder
 
         Repeater {
           model: [
@@ -286,7 +299,8 @@ Item {
               tip: note.floating ? "Dock" : "Pop out" },
             { glyph: "\uf08d", act: "pin",     tip: "Pin" },
             { glyph: "\uf187", act: "archive", tip: "Archive" },
-            { glyph: "\uf1f8", act: "delete",  tip: "Delete" }
+            { glyph: "\uf1f8", act: "delete",  tip: "Delete" },
+            { glyph: "\uf017", act: "remind",  tip: "Remind me" }
           ]
           delegate: Text {
             required property var modelData
@@ -295,6 +309,7 @@ Item {
             font.pixelSize: 12
             color: {
               if (modelData.act === "delete" && actions.deleteArmed) return Theme.urgent
+              if (modelData.act === "remind" && note.hasReminder) return note.tint
               var lit = hit.containsMouse ? 1.0
                         : (modelData.act === "pin" && note.pinned ? 0.85 : 0.42)
               return Theme.withAlpha(note.ink, lit)
@@ -305,8 +320,12 @@ Item {
               anchors.fill: parent
               anchors.margins: -5
               hoverEnabled: true
-              onEntered: actions.hint = actions.deleteArmed && modelData.act === "delete"
-                                        ? "Click again" : modelData.tip
+              onEntered: {
+                if (modelData.act === "delete" && actions.deleteArmed) actions.hint = "Click again"
+                else if (modelData.act === "remind" && note.hasReminder)
+                  actions.hint = Store.relativeFuture(note.reminderAt) + " (click to clear)"
+                else actions.hint = modelData.tip
+              }
               onExited: if (actions.hint === modelData.tip) actions.hint = ""
               onClicked: {
                 if (modelData.act === "pop") {
@@ -316,6 +335,11 @@ Item {
                 }
                 if (modelData.act === "pin") { Store.togglePinned(note.noteId); return }
                 if (modelData.act === "archive") { Store.toggleArchived(note.noteId); note.dismissed(); return }
+                if (modelData.act === "remind") {
+                  if (note.hasReminder) Store.setReminder(note.noteId, "")
+                  else actions.pickingReminder = true
+                  return
+                }
                 if (!actions.deleteArmed) {
                   actions.deleteArmed = true
                   actions.hint = "Click again"
@@ -325,6 +349,60 @@ Item {
                 disarm.stop()
                 actions.deleteArmed = false
                 note.deleteRequested()
+              }
+            }
+          }
+        }
+      }
+
+      Row {
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 6
+        visible: actions.pickingReminder
+
+        Repeater {
+          model: [
+            { label: "15m",  mins: 15 },
+            { label: "1h",   mins: 60 },
+            { label: "3h",   mins: 180 },
+            { label: "9am",  mins: -1 },
+            { label: "\u00d7", mins: 0 }
+          ]
+          delegate: Rectangle {
+            required property var modelData
+            width: chipLabel.width + 10
+            height: 15
+            radius: 4
+            color: Theme.withAlpha(note.ink, chipHit.containsMouse ? 0.22 : 0.10)
+
+            Text {
+              id: chipLabel
+              anchors.centerIn: parent
+              text: modelData.label
+              font.family: Theme.fontFamily
+              font.pixelSize: 9
+              color: Theme.withAlpha(note.ink, 0.85)
+            }
+
+            MouseArea {
+              id: chipHit
+              anchors.fill: parent
+              hoverEnabled: true
+              onClicked: {
+                actions.pickingReminder = false
+                if (modelData.mins === 0) return
+                if (modelData.mins < 0) {
+                  // Next 9am, today if it has not happened yet.
+                  var d = new Date()
+                  d.setSeconds(0, 0)
+                  if (d.getHours() >= 9) d.setDate(d.getDate() + 1)
+                  d.setHours(9, 0, 0, 0)
+                  Store.setReminder(note.noteId, d.toISOString())
+                  return
+                }
+                Store.setReminder(note.noteId,
+                                  new Date(Date.now() + modelData.mins * 60000).toISOString())
               }
             }
           }
@@ -474,6 +552,10 @@ Item {
       }
     }
   }
+
+  // A half-made choice should not still be sitting there next time the note is
+  // reached for.
+  onOpenChanged: if (!open) actions.pickingReminder = false
 
   // Resize grip. Only meaningful once detached; docked notes are sized by the
   // strip.

@@ -48,6 +48,7 @@ ledge - sticky notes that live on the edge of the screen
   ledge add [text]        append to the most recent note (reads stdin)
   ledge list              every note as JSON
   ledge all               open the All Notes window (search, archive, trash)
+  ledge remind <id> <when>  remind you about a note (15m, 2h, 3d, ISO, or clear)
   ledge export [path]     write every note to one markdown file
   ledge trash             list deleted notes as JSON
   ledge restore <file>    bring a deleted note back
@@ -96,6 +97,7 @@ case "$cmd" in
   add)     ipc append "$(body_from "$@")" ;;
   list)    ipc list ;;
   all)     ipc all ;;
+  remind)  [[ $# -ge 2 ]] || { echo "ledge: remind needs a note id and a time (15m, 2h, 3d, an ISO timestamp, or 'clear')" >&2; exit 2; }; ipc remind "$1" "$2" ;;
   export)  ipc exportAll "${1:-}" "${2:-true}" ;;
   trash)   ipc refreshTrash >/dev/null; sleep 0.35; ipc trash ;;
   restore) [[ $# -ge 1 ]] || { echo "ledge: restore needs a trash filename (see 'ledge trash')" >&2; exit 2; }; ipc restore "$1" ;;

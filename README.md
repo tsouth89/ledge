@@ -67,6 +67,23 @@ A note you open and never type into is discarded when it closes. Nothing is
 written to disk until a note has something in it, so reaching for `SUPER + N`,
 thinking better of it, and pressing it again leaves nothing behind.
 
+### Reminders
+
+The clock on an open note sets one: 15 minutes, an hour, three hours, or next
+9am. Click it again to clear it, and it lights up while one is pending.
+
+Reminders live in the note's frontmatter, so they travel with the file. Nothing
+schedules a timer per note; the list is swept periodically instead, which means
+a reminder that came due while the machine was asleep, or while Ledge was not
+running, still fires the next time it is looked at rather than being silently
+skipped.
+
+```bash
+ledge remind <id> 90m
+ledge remind <id> 2026-09-01T09:00:00Z
+ledge remind <id> clear
+```
+
 ### All notes
 
 `SUPER + SHIFT + L` opens a window with every note in it: search across bodies

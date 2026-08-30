@@ -189,6 +189,42 @@ ShellRoot {
     }
   }
 
+  // ---------------------------------------------------------- reminders
+  //
+  // A reminder is a timestamp in a note's frontmatter. Nothing schedules a
+  // timer per note: the list is swept periodically instead, which means a
+  // reminder that came due while the machine was asleep, or while Ledge was not
+  // running, still fires the next time it is looked at rather than being
+  // silently skipped.
+
+  Process { id: notifyProc }
+
+  Timer {
+    running: true
+    interval: 20000
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: shell.sweepReminders()
+  }
+
+  function sweepReminders() {
+    if (!Store.ready) return
+    var due = Store.dueReminders(Date.now())
+    for (var i = 0; i < due.length; i++) {
+      // Cleared before notifying, so a notification that fails to send cannot
+      // leave the reminder due and re-firing every sweep.
+      Store.setReminder(due[i].id, "")
+      shell.notifyReminder(due[i])
+    }
+  }
+
+  function notifyReminder(item) {
+    var lines = String(item.body || "").split("\n").slice(1)
+                  .filter(function (l) { return l.replace(/\s+/g, "").length })
+    notifyProc.exec(["notify-send", "--app-name=Ledge", "--icon=accessories-text-editor",
+                     item.title, lines.slice(0, 4).join("\n")])
+  }
+
   // ------------------------------------------------------------------ ipc
   //
   //   ledge new "text"     create a note and open it
@@ -260,6 +296,29 @@ ShellRoot {
     }
 
     function refreshTrash(): string { Store.refreshTrash(); return "ok" }
+
+    // `when` is a duration like 15m / 2h / 3d, an ISO 8601 timestamp, or
+    // "clear".
+    function remind(id: string, when: string): string {
+      if (Store.indexOfId(id) < 0) return "unknown id"
+      var w = String(when || "").trim()
+      if (!w.length || w === "clear" || w === "none") {
+        Store.setReminder(id, "")
+        return "cleared"
+      }
+      var rel = w.match(/^(\d+)\s*([mhd])$/i)
+      var at
+      if (rel) {
+        var mult = { m: 60000, h: 3600000, d: 86400000 }[rel[2].toLowerCase()]
+        at = Date.now() + parseInt(rel[1], 10) * mult
+      } else {
+        at = Date.parse(w)
+        if (!isFinite(at)) return "could not read a time from '" + w + "'"
+      }
+      var iso = new Date(at).toISOString()
+      Store.setReminder(id, iso)
+      return iso
+    }
 
     function exportAll(path: string, includeArchived: string): string {
       var target = (path && path.length) ? path : (Store.home + "/ledge-notes.md")

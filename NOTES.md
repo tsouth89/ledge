@@ -205,21 +205,19 @@ leave before enter, and without the re-check the strip latches open.
   monitors, dock it back
 - Controls always visible on an open note, two-step delete, blank notes discarded
 - `SUPER + N` toggles: opens a blank note, or puts the open one away
+- All Notes window: search, archived notes, trash with restore, export
+- Reminders, fired by a sweep rather than per-note timers
 - Config hot reload
 
 ## Next, roughly in order
 
-1. **All Notes window** - search, filter, archive browsing. Mac parity item.
-2. **Export** - markdown, plain text, single document.
-3. **Reminders** - `reminder:` is already parsed and persisted in frontmatter but
-   nothing fires. Wire it to an Omarchy notification.
-4. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
-5. **Inline markdown styling** behind the `styling` flag. The approach that works
+1. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
+2. **Inline markdown styling** behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-6. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
-7. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+3. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
+4. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 

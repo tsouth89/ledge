@@ -27,7 +27,6 @@ start() {
   if running; then echo "ledge: already running"; return 0; fi
   qs --path "$SHELL_DIR" --daemonize
   # The IPC target only registers once the config finishes loading.
-  local i
   for _ in $(seq 1 40); do running && return 0; sleep 0.1; done
   echo "ledge: started but IPC did not come up" >&2
   return 1

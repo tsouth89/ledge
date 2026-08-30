@@ -24,21 +24,47 @@ not there.
 
 ## Install
 
-```bash
-yay -S ledge          # once published
-systemctl --user enable --now ledge
-```
-
-From source:
+The AUR is not accepting new package submissions at the moment, so build it
+yourself. The PKGBUILD is in the repository and fetches the tagged release:
 
 ```bash
 git clone https://github.com/tsouth89/ledge
 cd ledge
+makepkg -si
+```
+
+Then start it, either as a user service:
+
+```bash
+systemctl --user enable --now ledge
+```
+
+or from your compositor's autostart, if you would rather not involve systemd:
+
+```
+exec-once = ledge start
+```
+
+On Omarchy that goes in `~/.config/hypr/autostart.lua`.
+
+To run it straight from a clone without installing anything:
+
+```bash
 ./bin/ledge start
 ```
 
 Requires `quickshell` and a `wlr-layer-shell` compositor. Developed on Hyprland;
-Sway, river, niri and Wayfire should work but are untested.
+Sway, river, niri and Wayfire should work, but popped-out notes rely on Hyprland
+window rules and will float without their placement elsewhere.
+
+Suggested keybindings:
+
+```lua
+o.bind("SUPER + N", "New note", "ledge new")
+o.bind("SUPER + SHIFT + L", "All notes", "ledge all")
+```
+
+`ledge version` prints everything a bug report needs.
 
 ## Use
 
@@ -160,15 +186,9 @@ dmesg | tail -20 | ledge new
 ledge add "call the vet at 3"
 ```
 
-Bind it in Hyprland:
-
-```lua
-o.bind("SUPER + N", "New note", "ledge new")
-o.bind("SUPER + SHIFT + L", "All notes", "ledge all")
-```
-
 `SUPER + N` is the one plain-SUPER letter Omarchy leaves free that actually
-means something here, and it matches the macOS original's new-note chord.
+means something here, and it matches the macOS original's new-note chord. Bare
+`ledge new` toggles, so the same key puts the note away again.
 
 ## Your notes are just files
 

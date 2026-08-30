@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=Ledge
+GenericName=Sticky Notes
+Comment=Sticky notes that live on the edge of your screen
+Exec=ledge start
+Icon=ledge
+Terminal=false
+Categories=Utility;TextEditor;
+Actions=NewNote;AllNotes;
+Keywords=notes;sticky;memo;todo;
+StartupNotify=false
+# The strip is a layer surface with no window of its own, so a launcher has
+# nothing to wait for or group under.
+NoDisplay=false
+
+[Desktop Action NewNote]
+Name=New note
+Exec=ledge new
+
+[Desktop Action AllNotes]
+Name=All notes
+Exec=ledge all

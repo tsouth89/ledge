@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Ledge: notes resting against the edge of the screen. The tall bar on the
+       right is the edge; the card grows out of it, the way a note does. -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a7f6b"/>
+      <stop offset="1" stop-color="#37604f"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#111c18"/>
+
+  <!-- the open note -->
+  <rect x="22" y="38" width="62" height="52" rx="7" fill="url(#paper)"/>
+  <rect x="30" y="50" width="34" height="4" rx="2" fill="#cfe6da" opacity="0.85"/>
+  <rect x="30" y="62" width="44" height="4" rx="2" fill="#cfe6da" opacity="0.5"/>
+  <rect x="30" y="74" width="26" height="4" rx="2" fill="#cfe6da" opacity="0.5"/>
+
+  <!-- the dashes on the edge, one per note -->
+  <rect x="88" y="26" width="14" height="24" rx="4" fill="#8fd0a8"/>
+  <rect x="88" y="54" width="14" height="24" rx="4" fill="#7fc7cf"/>
+  <rect x="88" y="82" width="14" height="24" rx="4" fill="#d8d79a"/>
+</svg>

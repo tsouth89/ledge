@@ -2,6 +2,8 @@
 # ledge - edge-docked sticky notes for Hyprland
 set -euo pipefail
 
+LEDGE_VERSION=0.1.0
+
 find_shell_dir() {
   if [[ -n ${LEDGE_SHELL_DIR:-} && -f $LEDGE_SHELL_DIR/shell.qml ]]; then
     printf '%s' "$LEDGE_SHELL_DIR"; return
@@ -63,6 +65,7 @@ ledge - sticky notes that live on the edge of the screen
   ledge close             collapse the strip
   ledge log               tail the running instance's log
   ledge dir               print the data directory
+  ledge version           version and environment, for bug reports
 
 Notes live in ~/.local/share/ledge/notes as plain markdown files.
 Settings live in ~/.config/ledge/config.json.
@@ -111,7 +114,17 @@ case "$cmd" in
   move)    [[ $# -ge 2 ]] || { echo "ledge: move needs a note id and a position" >&2; exit 2; }; ipc move "$1" "$2" ;;
   peek)    ipc peek ;;
   close)   ipc close ;;
-  dir)     echo "$HOME/.local/share/ledge" ;;
+  dir)     echo "${LEDGE_DATA_DIR:-$HOME/.local/share/ledge}" ;;
+  version|--version|-V)
+    # Everything a bug report needs, in one place.
+    echo "ledge $LEDGE_VERSION"
+    echo "  shell:      $SHELL_DIR"
+    echo "  data:       ${LEDGE_DATA_DIR:-$HOME/.local/share/ledge}"
+    echo "  config:     ${LEDGE_CONFIG:-$HOME/.config/ledge/config.json}"
+    echo "  quickshell: $(qs --version 2>/dev/null | head -1 || echo 'not found')"
+    echo "  compositor: $(hyprctl version 2>/dev/null | head -1 || echo 'not Hyprland')"
+    echo "  running:    $(running && echo yes || echo no)"
+    ;;
   log)     qs log --path "$SHELL_DIR" ;;
   -h|--help|help) usage ;;
   *)       echo "ledge: unknown command '$cmd'" >&2; usage >&2; exit 2 ;;

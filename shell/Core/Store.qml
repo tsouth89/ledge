@@ -27,12 +27,46 @@ QtObject {
   readonly property string notesDir: dataDir + "/notes"
   readonly property string trashDir: dataDir + "/trash"
   readonly property string orderPath: dataDir + "/order"
+  readonly property string seededPath: dataDir + "/.seeded"
   readonly property string floatsPath: dataDir + "/floats.json"
 
   readonly property ListModel notes: ListModel {}
 
   property bool ready: false
   property var order: []
+
+  // First-run seeding. Tracked with a marker file rather than "are there zero
+  // notes", so deleting every note does not make the welcome note reappear.
+  property bool seedChecked: false
+  property bool seeded: false
+
+  function maybeSeed() {
+    if (!root.ready || !root.seedChecked || root.seeded) return
+    root.seeded = true
+    seedMarker.setText("Ledge writes this once, the first time it runs.\n")
+    if (notes.count > 0) return
+    create("Welcome to Ledge\n"
+           + "- [ ] reach for the edge to fan these out\n"
+           + "- [ ] hover a dash to open its note\n"
+           + "- [ ] drag a dash to reorder\n"
+           + "- [ ] the + below makes a new one\n"
+           + "\n"
+           + "SUPER+N for a new note anywhere\n"
+           + "SUPER+SHIFT+L for search and archive\n"
+           + "\n"
+           + "Delete this note when you are done with it.\n", "")
+  }
+
+  property FileView seedMarker: FileView {
+    path: root.seededPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: { root.seeded = true; root.seedChecked = true }
+    onLoadFailed: { root.seedChecked = true; root.maybeSeed() }
+  }
+
+  onReadyChanged: if (ready) maybeSeed()
 
   // Visible-note count, kept as plain state rather than derived in the view.
   // Binding a window's `visible` to a child ListView's count makes the child's

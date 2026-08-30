@@ -23,6 +23,8 @@ package() {
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
   install -Dm644 docs/config.md "$pkgdir/usr/share/doc/$pkgname/config.md"
   install -Dm644 docs/hyprland.md "$pkgdir/usr/share/doc/$pkgname/hyprland.md"
+  install -Dm644 ledge.desktop "$pkgdir/usr/share/applications/ledge.desktop"
+  install -Dm644 assets/ledge.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/ledge.svg"
 
   # The whole shell tree, not a list of extensions. Filtering by extension
   # silently dropped Core/Markup.js, which every note imports, so the packaged

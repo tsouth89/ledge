@@ -59,10 +59,20 @@ Placement is a second rule per note, carrying the position and size from
 ```lua
 hl.window_rule({
   match = { title = "^(ledge-note:<id>)$" },
-  move = { x, y },
+  move = { x, y, exact = true },
   size = { w, h },
 })
 ```
+
+`exact = true` matters: without it Hyprland treats the coordinates as relative to
+whichever monitor the window opens on, so a note saved near the left of your
+desktop reopens shifted by the width of everything to its left.
+
+The base rule and the placement rules are applied as **separate** `eval` calls.
+A malformed chunk is rejected in full, so putting them together would mean one
+bad coordinate silently taking `float` and `pin` with it and every note tiling.
+Kept apart, the worst a bad placement rule can do is leave one note in the wrong
+place.
 
 A window rule only applies to a window that has not mapped yet, so Ledge does
 not add a note to the float table until its placement rule has landed. Without
@@ -91,7 +101,9 @@ Two things to watch, both of which fail silently as "my notes are tiled again":
   Lua rejects it as an invalid escape and **the entire chunk is discarded**,
   taking every rule in it with it. Ledge escapes regex metacharacters but
   deliberately leaves hyphens alone: `\-` is not valid Lua, and a hyphen outside
-  a character class is already literal.
+  a character class is already literal. This is why the base rule is applied
+  separately, and why Ledge logs a warning naming which set of rules Hyprland
+  refused.
 - Rules applied this way live in the compositor, not your config, so
   `hyprctl reload` drops them. Ledge reapplies on startup; if you reload
   Hyprland while Ledge is running, restart it with `ledge restart`.

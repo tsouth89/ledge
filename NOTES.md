@@ -123,6 +123,19 @@ gives resizing for free. Do not "optimise" this back to layer-shell.
 single expression -- multiple rules have to be smuggled in as
 `(function() ... end)()`.
 
+**Apply the base window rule in its own eval call.** `hyprctl eval` rejects a
+malformed chunk wholesale, so bundling float/pin together with one placement
+rule per note means a single bad coordinate or a hand-edited float id silently
+takes the float rule down with it and *every* popped-out note tiles. Base rule
+and placement rules are separate calls: the worst a bad placement rule can now
+do is leave one note in the wrong position. Verified by injecting a malformed
+id and confirming the notes still float.
+
+**`move` in a window rule is monitor-relative unless you pass `exact = true`.**
+A note saved at x=400 reopened at x=2448 when the second monitor happened to be
+focused, because 2448 is 400 past that monitor's origin. This is invisible while
+testing on a single-monitor layout or with the leftmost monitor focused.
+
 **The eval chunk is Lua source, so backslashes must be doubled.** A single `\-`
 is an invalid Lua escape and the *entire chunk* is rejected, silently taking
 every rule with it. The visible symptom is "popped-out notes are tiled again",

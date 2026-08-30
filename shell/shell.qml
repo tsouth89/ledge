@@ -52,9 +52,13 @@ ShellRoot {
 
   function noteTitleRe(id) { return "^(ledge-note:" + shell.reEscape(id) + ")$" }
 
+  // `exact = true` makes the coordinates absolute. Without it Hyprland treats
+  // move as relative to whichever monitor the window opens on, so a note saved
+  // at x=400 reopened at 2448 when the second monitor happened to be focused.
   function placementLua(id, x, y, w, h) {
+    if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return ""
     return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
-         + ', move = { ' + Math.round(x) + ', ' + Math.round(y) + ' }'
+         + ', move = { ' + Math.round(x) + ', ' + Math.round(y) + ', exact = true }'
          + ', size = { ' + Math.round(w) + ', ' + Math.round(h) + ' } })'
   }
 
@@ -73,17 +77,46 @@ ShellRoot {
 
   Process { id: ruleProc }
 
-  // Startup: the base rule, plus a placement rule for every note that was
-  // already floating, before any of their windows are allowed to exist.
+  // The base rule goes in on its own, deliberately.
+  //
+  // hyprctl eval rejects a malformed chunk *wholesale*, so bundling the
+  // float/pin rule together with one placement rule per note means a single bad
+  // coordinate silently takes the float rule down with it and every popped-out
+  // note tiles. Keeping them in separate calls means the worst a bad placement
+  // rule can do is leave one note in the wrong place.
+  Process {
+    id: baseRuleProc
+    stdout: StdioCollector { onStreamFinished: shell.checkRuleResult("base", text) }
+    onExited: {
+      // Placement is best-effort; the notes are usable without it, so they are
+      // not held back waiting for it.
+      shell.applyPlacementRules()
+      shell.rulesReady = true
+    }
+  }
+
   Process {
     id: setupProc
-    stdout: StdioCollector {
-      // A malformed chunk is rejected wholesale and every rule in it is lost,
-      // which shows up much later as popped-out notes being tiled. Say so now.
-      onStreamFinished: if (String(text).indexOf("error") >= 0)
-        console.warn("ledge: window rules rejected by Hyprland:", text)
+    stdout: StdioCollector { onStreamFinished: shell.checkRuleResult("placement", text) }
+  }
+
+  function checkRuleResult(which, text) {
+    if (String(text).indexOf("error") >= 0)
+      console.warn("ledge: Hyprland rejected the " + which + " window rules, "
+                   + "popped-out notes will not behave correctly:", text)
+  }
+
+  function applyPlacementRules() {
+    var lines = []
+    for (var id in Store.floats) {
+      var f = Store.floats[id]
+      var rule = shell.placementLua(id, f.x, f.y,
+                                    f.w || Config.cardWidth, f.h || 200)
+      if (rule.length) lines.push(rule)
     }
-    onExited: shell.rulesReady = true
+    if (!lines.length) return
+    setupProc.command = ["hyprctl", "eval", shell.evalChunk(lines)]
+    setupProc.running = true
   }
 
   property bool rulesRequested: false
@@ -95,14 +128,8 @@ ShellRoot {
   function applyStartupRules() {
     if (shell.rulesRequested || !Store.floatsReady) return
     shell.rulesRequested = true
-    var lines = [shell.baseRuleLua]
-    for (var id in Store.floats) {
-      var f = Store.floats[id]
-      lines.push(shell.placementLua(id, f.x, f.y,
-                                    f.w || Config.cardWidth, f.h || 200))
-    }
-    setupProc.command = ["hyprctl", "eval", shell.evalChunk(lines)]
-    setupProc.running = true
+    baseRuleProc.command = ["hyprctl", "eval", shell.baseRuleLua]
+    baseRuleProc.running = true
   }
 
   Component.onCompleted: shell.applyStartupRules()

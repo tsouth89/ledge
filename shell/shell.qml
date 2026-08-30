@@ -310,6 +310,17 @@ ShellRoot {
 
     function refreshTrash(): string { Store.refreshTrash(); return "ok" }
 
+    // Attach whatever image is on the clipboard to a note.
+    function attach(id: string): string {
+      if (Store.indexOfId(id) < 0) return "unknown id"
+      Store.pasteInto(id)
+      return "ok"
+    }
+
+    function attachments(id: string): string {
+      return JSON.stringify(Store.attachmentsFor(id))
+    }
+
     // `when` is a duration like 15m / 2h / 3d, an ISO 8601 timestamp, or
     // "clear".
     function remind(id: string, when: string): string {

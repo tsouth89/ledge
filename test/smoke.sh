@@ -123,6 +123,28 @@ ipc dock "$A" >/dev/null; sleep 0.8
 is "docked note is no longer floating" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"
 
+# --- attachments --------------------------------------------------------------
+# Clipboard tests are opt-in: the clipboard is global, and a test run has no
+# business overwriting whatever the user had on it.
+if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
+  ATT=$(ipc create "note with a picture"); settle
+  magick -size 40x40 xc:teal "$DATA/probe.png" 2>/dev/null \
+    || convert -size 40x40 xc:teal "$DATA/probe.png" 2>/dev/null
+  wl-copy --type image/png < "$DATA/probe.png"; sleep 0.4
+  ipc attach "$ATT" >/dev/null; sleep 1.2
+  is "clipboard image becomes an attachment" "$(ls -1 "$DATA/attachments/$ATT" 2>/dev/null | wc -l)" "1"
+
+  printf 'plain text' | wl-copy; sleep 0.4
+  ipc attach "$ATT" >/dev/null; sleep 1.2
+  is "clipboard text does not" "$(ls -1 "$DATA/attachments/$ATT" 2>/dev/null | wc -l)" "1"
+
+  ipc remove "$ATT" >/dev/null; sleep 1.2
+  is "deleting a note takes its attachments" "$([[ -d $DATA/attachments/$ATT ]] && echo present || echo gone)" "gone"
+  wl-copy --clear 2>/dev/null || true
+else
+  echo "  skip attachments (set LEDGE_TEST_CLIPBOARD=1 to include; it overwrites your clipboard)"
+fi
+
 # --- the shell stayed healthy throughout --------------------------------------
 noise=$(grep -E "ERROR|Binding loop|is not a type|Cannot set" "$LOG" | grep -v portal | head -3)
 is "no errors in the log" "$([[ -z $noise ]] && echo clean)" "clean"

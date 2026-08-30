@@ -179,6 +179,10 @@ why headings change weight and colour but never size. Verified by measuring: the
 same line occupies rows 65-75 and columns 18-299 in both modes. Bold sharing an
 advance width is a property of monospaced faces only, hence the `styling` switch.
 
+**Never assign to a TextEdit's `text` to make a small edit.** Assigning rebuilds
+the document and throws the undo history away, so toggling one checkbox used to
+cost every edit made to that note. `remove()` + `insert()` keeps it.
+
 **A directory rescan can race a file move.** Deleting a note removes its row and
 *then* moves the file to trash. A rescan landing in between still sees the file
 and re-adds the row as an unloaded placeholder, and the reap pass used to skip
@@ -232,18 +236,18 @@ leave before enter, and without the re-check the strip latches open.
 - `SUPER + N` toggles: opens a blank note, or puts the open one away
 - All Notes window: search, archived notes, trash with restore, export
 - Reminders, fired by a sweep rather than per-note timers
+- Pasted images as attachments beside the notes
 - Config hot reload
 
 ## Next, roughly in order
 
-1. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
-2. **Markup coverage** - tables and fenced code blocks are deliberately absent;
+1. **Markup coverage** - tables and fenced code blocks are deliberately absent;
    both need block layout, which the same-width invariant forbids. behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-3. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
-4. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+2. Multi-monitor `"all"` is written but only `"focused"` has been exercised.
+3. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 

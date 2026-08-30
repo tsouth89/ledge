@@ -67,6 +67,23 @@ A note you open and never type into is discarded when it closes. Nothing is
 written to disk until a note has something in it, so reaching for `SUPER + N`,
 thinking better of it, and pressing it again leaves nothing behind.
 
+### Images
+
+Paste an image into a note and it becomes a thumbnail along the bottom. Click it
+to open, or hover for the button to drop it.
+
+Images are files beside the notes, not markdown embedded in them:
+
+```
+~/.local/share/ledge/attachments/<note-id>/<timestamp>.png
+```
+
+`![](/some/long/path.png)` in the text would be styled, wrapped, edited and
+eventually broken by hand, and it would eat four lines of a sticky note to say
+"there is a picture here". Deleting a note takes its images with it.
+
+`ledge attach <id>` does the same thing from a script.
+
 ### Reminders
 
 The clock on an open note sets one: 15 minutes, an hour, three hours, or next
@@ -159,7 +176,8 @@ means something here, and it matches the macOS original's new-note chord.
 ~/.local/share/ledge/
 ├── notes/<id>.md     one note per file, YAML frontmatter
 ├── order             note ids, one per line, display order
-├── floats.json       positions of popped-out notes
+├── floats.json       geometry of popped-out notes, per monitor
+├── attachments/      pasted images, one directory per note
 └── trash/            deleted notes
 ```
 

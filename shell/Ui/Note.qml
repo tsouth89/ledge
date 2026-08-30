@@ -64,9 +64,13 @@ Item {
   readonly property int bandWidth: 6
   readonly property int radius: 9
 
+  readonly property var attachments: Store.attachmentsFor(noteId)
+  readonly property int attachHeight: attachments.length ? 48 : 0
+
   readonly property int openHeight: Math.max(Config.cardMinHeight,
                                              Math.min(Config.cardMaxHeight,
-                                                      Math.ceil(editor.contentHeight) + actions.height + 6 + pad * 2))
+                                                      Math.ceil(editor.contentHeight) + actions.height
+                                                      + attachHeight + 6 + pad * 2))
 
   implicitWidth: floating || open ? Config.cardWidth : (peeked ? Config.tabPeek : Config.tabRest)
   implicitHeight: floating || open ? openHeight : Config.tabHeight
@@ -454,7 +458,8 @@ Item {
     Flickable {
       id: scroller
       width: parent.width
-      height: Math.max(0, layout.height - actions.height - layout.spacing)
+      height: Math.max(0, layout.height - actions.height - attachRow.height
+                          - layout.spacing * (attachRow.height > 0 ? 2 : 1))
       contentHeight: editor.contentHeight
       clip: true
       boundsBehavior: Flickable.StopAtBounds
@@ -564,6 +569,22 @@ Item {
           note.dismissed()
         }
 
+        // Ctrl+V. Whether the clipboard holds an image can only be answered by
+        // asking it, so the decision is made asynchronously and a plain text
+        // paste is handed back to the editor once the answer comes.
+        Keys.onPressed: function (event) {
+          if (!event.matches(StandardKey.Paste)) return
+          event.accepted = true
+          Store.pasteInto(note.noteId)
+        }
+
+        Connections {
+          target: Store
+          function onPasteFellThrough(id) {
+            if (id === note.noteId && editor.activeFocus) editor.paste()
+          }
+        }
+
         // Rebind when this delegate is handed a different note, and pick up
         // edits made to the file by anything else -- but never yank text out
         // from under a caret that is currently in it.
@@ -591,11 +612,78 @@ Item {
             if (!box) return
             if (pos - lineStart > box[0].length + 1) return
 
-            var flipped = box[2] === " " ? "x" : " "
-            var updated = line.replace(/^(\s*[-*]\s*\[)([ xX])(\])/, "$1" + flipped + "$3")
+            // Edit the single character in place rather than reassigning
+            // `text`. Assigning to text rebuilds the document and throws away
+            // the undo history, so one stray click on a checkbox would cost you
+            // every edit you had made to the note.
+            var at = lineStart + box[1].length
             var caret = editor.cursorPosition
-            editor.text = text.slice(0, lineStart) + updated + text.slice(lineEnd)
+            editor.remove(at, at + 1)
+            editor.insert(at, box[2] === " " ? "x" : " ")
             editor.cursorPosition = caret
+          }
+        }
+      }
+    }
+
+    // Pasted images. A row of thumbnails rather than anything in the text, so
+    // the note still reads as the words you wrote.
+    Row {
+      id: attachRow
+      width: parent.width
+      height: note.attachHeight
+      spacing: 6
+      visible: height > 0
+
+      Repeater {
+        model: note.attachments
+        delegate: Rectangle {
+          required property string modelData
+          width: 44
+          height: 44
+          radius: 5
+          color: Theme.withAlpha(note.ink, 0.10)
+          clip: true
+
+          Image {
+            anchors.fill: parent
+            source: Store.attachUrl(note.noteId, modelData)
+            fillMode: Image.PreserveAspectCrop
+            sourceSize.width: 88
+            sourceSize.height: 88
+            asynchronous: true
+          }
+
+          MouseArea {
+            id: thumbHit
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: Store.openAttachment(note.noteId, modelData)
+          }
+
+          Rectangle {
+            width: 14; height: 14; radius: 7
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 2
+            color: Theme.withAlpha("#000000", 0.6)
+            opacity: thumbHit.containsMouse || dropHit.containsMouse ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity { NumberAnimation { duration: 120 } }
+
+            Text {
+              anchors.centerIn: parent
+              text: "\u00d7"
+              font.pixelSize: 10
+              color: "#ffffff"
+            }
+
+            MouseArea {
+              id: dropHit
+              anchors.fill: parent
+              hoverEnabled: true
+              onClicked: Store.removeAttachment(note.noteId, modelData)
+            }
           }
         }
       }
@@ -604,7 +692,12 @@ Item {
 
   // A half-made choice should not still be sitting there next time the note is
   // reached for.
-  onOpenChanged: if (!open) actions.pickingReminder = false
+  onOpenChanged: {
+    if (!open) actions.pickingReminder = false
+    else Store.refreshAttachments(note.noteId)
+  }
+
+  Component.onCompleted: if (open || floating) Store.refreshAttachments(note.noteId)
 
   // Resize grip. Only meaningful once detached; docked notes are sized by the
   // strip.

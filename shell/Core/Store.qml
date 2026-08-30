@@ -435,6 +435,12 @@ QtObject {
     inflight[id] = true
     root.removing = inflight
 
+    // The images belong to the note, so they go with it.
+    attachOps.exec(["bash", "-c", 'rm -rf -- "$1"', "_", attachPathFor(id)])
+    var without = JSON.parse(JSON.stringify(root.attachments))
+    delete without[id]
+    root.attachments = without
+
     trashProc.exec(["bash", "-c",
       'mkdir -p "$1" && mv -f "$2" "$1/$(date +%s)-$(basename "$2")"',
       "_", root.trashDir, file])
@@ -572,6 +578,106 @@ QtObject {
       pending: false
     })
     recount()
+  }
+
+  // -------------------------------------------------- attachments
+  //
+  // Pasted images are files beside the notes, not markdown embedded in them.
+  // `![](path)` would put a filesystem path into the note's text, where it
+  // would be styled, wrapped, edited and eventually broken; and an image is not
+  // something you want occupying four lines of a sticky note as a URL.
+  //
+  //   ~/.local/share/ledge/attachments/<note-id>/<timestamp>.<ext>
+
+  readonly property string attachDir: dataDir + "/attachments"
+
+  // id -> [filename]. Reassigned wholesale so bindings re-evaluate.
+  property var attachments: ({})
+
+  function attachPathFor(id) { return root.attachDir + "/" + id }
+
+  function attachmentsFor(id) {
+    var list = root.attachments[id]
+    return list ? list : []
+  }
+
+  function attachUrl(id, file) {
+    return "file://" + attachPathFor(id) + "/" + file
+  }
+
+  property string attachScanId: ""
+
+  function refreshAttachments(id) {
+    root.attachScanId = id
+    attachScan.command = ["bash", "-c",
+      'cd "$1" 2>/dev/null && ls -1 2>/dev/null || true', "_", attachPathFor(id)]
+    attachScan.running = false
+    attachScan.running = true
+  }
+
+  function ingestAttachments(listing) {
+    var id = root.attachScanId
+    if (!id.length) return
+    var files = String(listing || "").split("\n").filter(function (f) { return f.length })
+    var next = JSON.parse(JSON.stringify(root.attachments))
+    if (files.length) next[id] = files
+    else delete next[id]
+    root.attachments = next
+  }
+
+  property Process attachScan: Process {
+    stdout: StdioCollector { onStreamFinished: root.ingestAttachments(text) }
+  }
+
+  // Paste: an image on the clipboard becomes an attachment, anything else is
+  // left for the editor to paste as text. Which of the two it is can only be
+  // known by asking the clipboard, so the decision is asynchronous.
+  signal pasteFellThrough(string id)
+
+  property string pasteTarget: ""
+
+  function pasteInto(id) {
+    root.pasteTarget = id
+    pasteProc.command = ["bash", "-c",
+      'set -e; dir="$1"; '
+      + 'types=$(wl-paste --list-types 2>/dev/null || true); '
+      + 'img=$(printf "%s\\n" "$types" | grep -m1 "^image/" || true); '
+      + 'if [ -z "$img" ]; then echo TEXT; exit 0; fi; '
+      + 'mkdir -p "$dir"; ext="${img#image/}"; '
+      + 'case "$ext" in jpeg) ext=jpg;; "svg+xml") ext=svg;; esac; '
+      + 'name="$(date +%s%N).$ext"; '
+      + 'wl-paste --type "$img" > "$dir/$name"; '
+      + 'echo "IMAGE $name"',
+      "_", attachPathFor(id)]
+    pasteProc.running = false
+    pasteProc.running = true
+  }
+
+  function finishPaste(result) {
+    var id = root.pasteTarget
+    if (!id.length) return
+    if (String(result || "").indexOf("IMAGE ") === 0) refreshAttachments(id)
+    else root.pasteFellThrough(id)
+  }
+
+  property Process pasteProc: Process {
+    stdout: StdioCollector { onStreamFinished: root.finishPaste(String(text).trim()) }
+  }
+
+  function removeAttachment(id, file) {
+    attachOps.exec(["bash", "-c", 'rm -f -- "$1/$2"', "_", attachPathFor(id), file])
+    attachSettle.restart()
+  }
+
+  function openAttachment(id, file) {
+    attachOps.exec(["xdg-open", attachPathFor(id) + "/" + file])
+  }
+
+  property Process attachOps: Process {}
+
+  property Timer attachSettle: Timer {
+    interval: 250
+    onTriggered: root.refreshAttachments(root.pasteTarget)
   }
 
   // -------------------------------------------------------------- trash

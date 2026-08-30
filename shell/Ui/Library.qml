@@ -23,6 +23,36 @@ FloatingWindow {
   property string query: ""
   property string hint: ""
 
+  // Keyboard selection. The search field keeps focus throughout -- you should
+  // be able to type, arrow to the right note and hit Return without ever
+  // reaching for the mouse or tabbing between panes.
+  property int selected: 0
+
+  function clampSelection() {
+    if (rows.length === 0) { selected = 0; return }
+    selected = Math.max(0, Math.min(rows.length - 1, selected))
+  }
+
+  onRowsChanged: clampSelection()
+
+  function moveSelection(delta) {
+    if (!rows.length) return
+    selected = (selected + delta + rows.length) % rows.length
+    list.positionViewAtIndex(selected, ListView.Contain)
+  }
+
+  // Return does whatever that row is mainly for: open it, put it back, or
+  // rescue it from the trash.
+  function activateSelection() {
+    if (!rows.length) return
+    var row = rows[selected]
+    if (row.kind === "trash") { win.runAction("restore", row); return }
+    if (win.view === "archived") { win.runAction("unarchive", row); return }
+    if (row.floating) return
+    Bus.openRequested(row.id)
+    win.dismissRequested()
+  }
+
   // Named to avoid colliding with Window's own closed signal.
   signal dismissRequested()
 
@@ -100,8 +130,24 @@ FloatingWindow {
         font.pixelSize: Theme.fontBase
         color: Theme.foreground
         selectionColor: Theme.withAlpha(Theme.accent, 0.45)
-        onTextChanged: win.query = text
+        focus: true
+        Component.onCompleted: forceActiveFocus()
+
+        onTextChanged: { win.query = text; win.selected = 0 }
+
+        // Escape backs out one step at a time rather than closing on a note
+        // half-typed.
         Keys.onEscapePressed: text.length ? text = "" : win.dismissRequested()
+        Keys.onUpPressed: function (event) { win.moveSelection(-1); event.accepted = true }
+        Keys.onDownPressed: function (event) { win.moveSelection(1); event.accepted = true }
+        Keys.onReturnPressed: function (event) { win.activateSelection(); event.accepted = true }
+        Keys.onEnterPressed: function (event) { win.activateSelection(); event.accepted = true }
+        Keys.onTabPressed: function (event) {
+          event.accepted = true
+          var order = ["notes", "archived", "trash"]
+          win.view = order[(order.indexOf(win.view) + 1) % order.length]
+          win.selected = 0
+        }
       }
     }
 
@@ -180,15 +226,21 @@ FloatingWindow {
           onTriggered: parent.armed = ""
         }
 
+        readonly property bool current: index === win.selected
+
         width: list.width - (list.ScrollBar.vertical.visible ? 10 : 0)
         height: 52
         radius: 6
-        color: Theme.withAlpha(Theme.foreground, rowHit.containsMouse ? 0.08 : 0.035)
+        color: current ? Theme.withAlpha(Theme.accent, 0.16)
+                       : Theme.withAlpha(Theme.foreground, rowHit.containsMouse ? 0.08 : 0.035)
+        border.width: current ? 1 : 0
+        border.color: Theme.withAlpha(Theme.accent, 0.5)
 
         MouseArea {
           id: rowHit
           anchors.fill: parent
           hoverEnabled: true
+          onEntered: win.selected = index
           onClicked: {
             if (row.kind !== "note" || row.floating) return
             Bus.openRequested(row.id)
@@ -320,6 +372,15 @@ FloatingWindow {
         onActivated: win.exportAll()
       }
 
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "\u2191\u2193 select    \u21b5 open    \u21e5 switch tab    esc close"
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontBase - 3
+        color: Theme.withAlpha(Theme.foreground, 0.35)
+        visible: win.hint.length === 0
+      }
+
       LibraryButton {
         text: "Empty trash"
         visible: win.view === "trash" && Store.trashModel.count > 0
@@ -363,6 +424,4 @@ FloatingWindow {
     status.text = count + " notes exported to " + path
     clearStatus.restart()
   }
-
-  Keys.onEscapePressed: win.dismissRequested()
 }

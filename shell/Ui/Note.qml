@@ -289,6 +289,10 @@ Item {
       // a popup: a note is already a small surface, and a menu floating off one
       // would need its own input region on the strip's layer.
       property bool pickingReminder: false
+      // Same inline treatment as the reminder chooser: the control row is
+      // swapped for the choices rather than opening a menu, which on the strip
+      // would need an input region of its own.
+      property bool pickingColour: false
 
       Timer {
         id: disarm
@@ -301,7 +305,7 @@ Item {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         spacing: 10
-        visible: !actions.pickingReminder
+        visible: !actions.pickingReminder && !actions.pickingColour
 
         Repeater {
           model: [
@@ -434,9 +438,44 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 120 } }
       }
 
+      // The whole palette, not the next one along. Cycling through eight is
+      // fine for the second colour and tedious for the one you actually want.
+      Row {
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 7
+        visible: actions.pickingColour
+
+        Repeater {
+          model: Theme.swatchKeys
+          delegate: Rectangle {
+            required property string modelData
+            width: 13; height: 13
+            radius: 6.5
+            color: Theme.tabColor(modelData)
+            border.width: modelData === note.colorKey ? 2 : 0
+            border.color: Theme.withAlpha(note.ink, 0.9)
+
+            MouseArea {
+              anchors.fill: parent
+              anchors.margins: -2
+              hoverEnabled: true
+              onEntered: actions.hint = Theme.swatchLabels[modelData] || modelData
+              onExited: actions.hint = ""
+              onClicked: {
+                Store.setColor(note.noteId, modelData)
+                actions.pickingColour = false
+                actions.hint = ""
+              }
+            }
+          }
+        }
+      }
+
       Rectangle {
         width: 10; height: 10; radius: 5
         color: note.tint
+        visible: !actions.pickingColour
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
 
@@ -447,8 +486,8 @@ Item {
           onEntered: actions.hint = "Colour"
           onExited: if (actions.hint === "Colour") actions.hint = ""
           onClicked: {
-            var keys = Theme.swatchKeys
-            Store.setColor(note.noteId, keys[(keys.indexOf(note.colorKey) + 1) % keys.length])
+            actions.pickingReminder = false
+            actions.pickingColour = true
           }
         }
       }
@@ -697,7 +736,7 @@ Item {
   // A half-made choice should not still be sitting there next time the note is
   // reached for.
   onOpenChanged: {
-    if (!open) actions.pickingReminder = false
+    if (!open) { actions.pickingReminder = false; actions.pickingColour = false }
     else Store.refreshAttachments(note.noteId)
   }
 

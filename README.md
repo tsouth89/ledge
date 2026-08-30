@@ -85,7 +85,8 @@ Hovering along an already-open strip swaps straight to the next note rather than
 making you wait out the dwell again.
 
 An open note shows its controls the whole time it is open: pop out, pin,
-archive, delete, and a swatch that cycles its colour. Hovering one names it.
+archive, delete, a reminder clock, and a swatch that opens the full colour
+palette. Hovering one names it.
 Delete takes two clicks, and deleted notes go to `trash/` rather than being
 unlinked, so a misclick is recoverable twice over.
 
@@ -113,7 +114,8 @@ eventually broken by hand, and it would eat four lines of a sticky note to say
 ### Reminders
 
 The clock on an open note sets one: 15 minutes, an hour, three hours, or next
-9am. Click it again to clear it, and it lights up while one is pending.
+9am. Click it again to clear it, and it lights up while one is pending. The
+notification carries an "Open note" action that brings the note back up.
 
 Reminders live in the note's frontmatter, so they travel with the file. Nothing
 schedules a timer per note; the list is swept periodically instead, which means
@@ -131,6 +133,11 @@ ledge remind <id> clear
 
 `SUPER + SHIFT + L` opens a window with every note in it: search across bodies
 and titles, browse what you have archived, and go through the trash.
+
+It is keyboard-first. The search field takes focus on open, and you never have
+to leave it: arrows move through the results, Return does whatever that row is
+mainly for (open a note, unarchive one, rescue one from the trash), Tab cycles
+the three views, and Escape clears the search before it closes the window.
 
 Deleting a note moves its file to `trash/` rather than unlinking it, and the
 trash view lists what is in there with how long ago it went, so a note you

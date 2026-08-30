@@ -210,7 +210,26 @@ ShellRoot {
   // running, still fires the next time it is looked at rather than being
   // silently skipped.
 
-  Process { id: notifyProc }
+  // One process per notification, because `--action` implies `--wait`: the
+  // command lives until the user answers it or it times out, so a single shared
+  // Process would let one pending reminder block the next.
+  Component {
+    id: notifier
+    Process {
+      property string noteId: ""
+      stdout: StdioCollector {
+        onStreamFinished: if (String(text).trim() === "open") shell.revealNote(noteId)
+      }
+      onExited: destroy()
+    }
+  }
+
+  // Bring a note to the user's attention wherever it currently lives.
+  function revealNote(id) {
+    if (Store.indexOfId(id) < 0) return
+    if (Store.isFloating(id)) return   // already a window on screen
+    Bus.openRequested(id)
+  }
 
   Timer {
     running: true
@@ -234,8 +253,12 @@ ShellRoot {
   function notifyReminder(item) {
     var lines = String(item.body || "").split("\n").slice(1)
                   .filter(function (l) { return l.replace(/\s+/g, "").length })
-    notifyProc.exec(["notify-send", "--app-name=Ledge", "--icon=accessories-text-editor",
-                     item.title, lines.slice(0, 4).join("\n")])
+    var proc = notifier.createObject(shell, { noteId: item.id })
+    if (!proc) return
+    proc.command = ["notify-send", "--app-name=Ledge", "--icon=ledge",
+                    "-A", "open=Open note",
+                    item.title, lines.slice(0, 4).join("\n")]
+    proc.running = true
   }
 
   // ------------------------------------------------------------------ ipc

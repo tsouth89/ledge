@@ -179,6 +179,19 @@ why headings change weight and colour but never size. Verified by measuring: the
 same line occupies rows 65-75 and columns 18-299 in both modes. Bold sharing an
 advance width is a property of monospaced faces only, hence the `styling` switch.
 
+**`Keys` does not attach to a Window.** `Keys.onEscapePressed` on the library's
+FloatingWindow silently did nothing and warned at startup: a Window is not an
+Item. Key handling belongs on a focused Item inside it, which for the library is
+the search field.
+
+**Do not drive this with synthetic input while the user is at the machine.**
+`wtype` goes to whatever holds focus, and moving the pointer to "get it out of
+the way" hands focus to whatever is under it. Twice this sent keystrokes into
+the user's browser. Related: Qt only reports `activeFocus` while the window
+itself is active, so a screenshot of focus styling proves nothing unless the app
+is genuinely the focused window -- which cost a round of chasing a focus bug
+that did not exist and briefly regressing working code.
+
 **Pick text colour by measuring contrast, not by blending toward black.** Tab
 labels were a fixed 72% mix toward black, which reads fine on half the palette
 and disappears into the other half. `Theme.tabTextColor` computes the swatch's
@@ -256,22 +269,15 @@ leave before enter, and without the re-check the strip latches open.
 
 ## Next, roughly in order
 
-1. **Library keyboard navigation.** The All Notes window is mouse-only: no
-   arrow keys to move through results, no Enter to open. The search field takes
-   focus but nothing else does.
-2. **Colour picking is a cycle, not a choice.** Clicking the swatch steps to the
-   next of eight. Fine for two notes, tedious for the one you want.
-3. **Reminder notifications are not actionable.** Clicking one should open the
-   note it came from; today it does nothing.
-4. **Markup coverage** - tables and fenced code blocks are deliberately absent;
+1. **Markup coverage** - tables and fenced code blocks are deliberately absent;
    both need block layout, which the same-width invariant forbids. behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.
-5. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
+2. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
-6. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+3. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
 
 ## Testing
 

@@ -29,7 +29,7 @@ repairing after being used as test subjects, and one lost its archived flag.
 **Before changing anything**
 
 ```bash
-./test/smoke.sh          # 45 assertions, needs a Wayland session
+./test/smoke.sh          # 44 assertions, needs a Wayland session
 ledge restart            # reload after editing QML
 ledge stats              # notes, live, floating, reaped, ready
 ```
@@ -113,6 +113,20 @@ silence. Read the text: Hyprland answers `ok`, and only `ok`, when it accepts a
 command. Anything else is a failure. This is why popped-out notes kept tiling
 after the bug looked fixed, and why `checkRuleResult` now tests for `ok` rather
 than grepping the reply for the word "error".
+
+**Hyprland here runs with `input:follow_mouse` on.** A window that opens away
+from the pointer hands focus straight back to whatever is under the cursor, so
+"open a window and let the user type into it" is not something a window rule
+can deliver on its own. A new note is therefore opened *under the pointer*; the
+`no_initial_focus = false` rule only stops Hyprland from suppressing the focus
+it would give it anyway.
+
+**A QML `Behavior` starts its animation before the bindings that depend on the
+same property have been re-evaluated.** `easing.type: open ? OutBack : OutCubic`
+inside a Behavior therefore ran every transition with the *previous* state's
+easing: opening got the plain ease and closing got the overshoot, so a note
+sprang past its resting width every time you looked away. Latch the direction
+with a `ScriptAction` at the head of the animation instead of binding it.
 
 **`Hyprland.usingLua` is populated asynchronously and reads false until it is
 ready.** It flips to true within about 500ms of startup, which is *after* the
@@ -374,6 +388,13 @@ the user rather than the author, all of them mechanically checkable.
 
 Not covered, because it needs a real pointer: hover-to-peek, drag reorder,
 dragging a float between monitors, and the resize grip.
+
+Two assertions are opt-in because they take something global away from whoever
+is at the machine: `LEDGE_TEST_CLIPBOARD=1` overwrites the clipboard, and
+`LEDGE_TEST_FOCUS=1` takes the keyboard away mid-run to check that a new note
+is typeable. Do not turn the focus one on while Brandon is working; it makes the
+session unusable for the length of the run, and it depends on the pointer
+sitting still, so it fails for reasons that have nothing to do with the code.
 
 The All Notes keyboard path *is* verified, by targeting the window directly as
 above: arrows move the selection, Tab cycles the three views, typing filters and

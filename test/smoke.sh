@@ -169,9 +169,16 @@ is "a new note is created floating" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "1"
 NEWID=$(python3 -c "
 import json;print(list(json.load(open('$DATA/floats.json')))[0])" 2>/dev/null)
-is "and takes the keyboard, so it can be typed into" "$(hyprctl -j activewindow 2>/dev/null | python3 -c "
+# Opt-in: this one takes the keyboard away from whatever you are doing, and it
+# depends on the pointer sitting still, so it has no business running by
+# default on a machine somebody is using.
+if [[ ${LEDGE_TEST_FOCUS:-0} == 1 ]]; then
+  is "and takes the keyboard, so it can be typed into" "$(hyprctl -j activewindow 2>/dev/null | python3 -c "
 import sys,json
 print(json.load(sys.stdin).get('title'))" 2>/dev/null)" "ledge-note:$NEWID"
+else
+  echo "  skip new note takes the keyboard (set LEDGE_TEST_FOCUS=1; it steals focus)"
+fi
 ipc toggleNew >/dev/null; sleep 1.2
 is "pressing again puts it away" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"

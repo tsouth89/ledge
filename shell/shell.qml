@@ -310,30 +310,66 @@ ShellRoot {
     return Quickshell.screens.length ? Quickshell.screens[0] : null
   }
 
-  // Where a brand-new note lands: on the output being looked at, stepped a
-  // little each time so that asking for several in a row does not bury them
-  // all under one another.
-  property int newCascade: 0
-  function newNotePosition() {
-    var base = shell.focusedScreen()
-    var step = shell.newCascade
-    shell.newCascade = (shell.newCascade + 1) % 6
-    return { x: (base ? base.x : 0) + 80 + step * 34,
-             y: (base ? base.y : 0) + 120 + step * 34 }
-  }
-
   // A new note is created already popped out, because that is what asking for
   // a sticky note means. Pressing the key again puts that note away: docked
   // back on the strip if something was typed into it, discarded if not, which
   // is what the strip's own new-note toggle has always done.
+  //
+  // It lands under the pointer. That is not a cosmetic choice: Hyprland is
+  // usually configured with `follow_mouse`, so a window that opens away from
+  // the pointer hands focus straight back to whatever is under it, and a note
+  // you just asked for could not be typed into. Opening it where you are
+  // already pointing puts the compositor's focus rule on the note's side
+  // instead of against it.
   property string newFloatId: ""
+  property string pendingNewId: ""
+
   function newFloatingNote(body) {
     Bus.closeRequested()
     var id = Store.create(body || "", "")
     shell.newFloatId = id
-    var at = shell.newNotePosition()
-    shell.popNote(id, at.x, at.y, true)
+    shell.pendingNewId = id
+    cursorProc.command = ["hyprctl", "cursorpos", "-j"]
+    cursorProc.running = true
     return id
+  }
+
+  Process {
+    id: cursorProc
+    stdout: StdioCollector { onStreamFinished: shell.placeNewNote(text) }
+  }
+
+  function placeNewNote(text) {
+    var id = shell.pendingNewId
+    if (!id.length) return
+    shell.pendingNewId = ""
+
+    var x = 0, y = 0, known = false
+    try {
+      var p = JSON.parse(String(text))
+      if (isFinite(p.x) && isFinite(p.y)) { x = p.x; y = p.y; known = true }
+    } catch (e) {}
+
+    if (known) {
+      // Just below and left of the pointer, so the cursor sits inside the
+      // note's top edge rather than on its corner pixel.
+      x -= 24
+      y -= 10
+    } else {
+      // No pointer to go on. Fall back to the top corner of the output being
+      // looked at, which is where `ledge pop` puts a note too.
+      var base = shell.focusedScreen()
+      x = (base ? base.x : 0) + 80
+      y = (base ? base.y : 0) + 120
+    }
+
+    // Never off the edge of the output it lands on.
+    var scr = Store.screenAt(x, y) || shell.focusedScreen()
+    if (scr) {
+      x = Math.max(scr.x + 8, Math.min(x, scr.x + scr.width - Config.cardWidth - 8))
+      y = Math.max(scr.y + 8, Math.min(y, scr.y + scr.height - 240))
+    }
+    shell.popNote(id, x, y, true)
   }
 
   function toggleNewFloat() {

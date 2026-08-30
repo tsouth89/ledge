@@ -82,9 +82,24 @@ Item {
   // pulled open, and it is the whole difference between "sleek" and physical.
   readonly property int growMs: 260
 
+  // Which way the current transition is going.
+  //
+  // This cannot be `note.open` read from inside the animation. A Behavior
+  // starts its animation before the bindings that depend on the same property
+  // have been re-evaluated, so `easing.type: note.open ? ... : ...` ran every
+  // transition with the *previous* state's easing: opening got the plain ease
+  // and closing got the overshoot, so a note sprang past its resting width
+  // toward the edge and settled back every time you looked away from it.
+  //
+  // Latched by a ScriptAction at the head of each animation instead, where
+  // `open` is already correct and the assignment lands before the easing is
+  // read.
+  property bool expanding: false
+
   Behavior on implicitWidth {
     enabled: !note.dragging
     SequentialAnimation {
+      ScriptAction { script: note.expanding = note.open }
       // index goes to -1 while a delegate is being torn down, and a negative
       // duration is an error rather than a no-op.
       PauseAnimation {
@@ -92,16 +107,19 @@ Item {
       }
       NumberAnimation {
         duration: note.growMs
-        easing.type: note.open ? Easing.OutBack : Easing.OutCubic
+        easing.type: note.expanding ? Easing.OutBack : Easing.OutCubic
         easing.overshoot: 1.08
       }
     }
   }
   Behavior on implicitHeight {
-    NumberAnimation {
-      duration: note.growMs
-      easing.type: note.open ? Easing.OutBack : Easing.OutCubic
-      easing.overshoot: 1.05
+    SequentialAnimation {
+      ScriptAction { script: note.expanding = note.open }
+      NumberAnimation {
+        duration: note.growMs
+        easing.type: note.expanding ? Easing.OutBack : Easing.OutCubic
+        easing.overshoot: 1.05
+      }
     }
   }
 
@@ -154,10 +172,13 @@ Item {
       anchors.left: note.bandRight ? undefined : parent.left
 
       Behavior on width {
-        NumberAnimation {
-          duration: note.growMs
-          easing.type: note.open ? Easing.OutBack : Easing.OutCubic
-          easing.overshoot: 1.08
+        SequentialAnimation {
+          ScriptAction { script: note.expanding = note.open }
+          NumberAnimation {
+            duration: note.growMs
+            easing.type: note.expanding ? Easing.OutBack : Easing.OutCubic
+            easing.overshoot: 1.08
+          }
         }
       }
       Behavior on color { ColorAnimation { duration: 220 } }

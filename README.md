@@ -70,10 +70,14 @@ thinking better of it, and pressing it again leaves nothing behind.
 ### Popping a note out
 
 Notes do not have to stay on the edge. Pop one out and it detaches to float
-wherever you put it on the desktop, dragged by its colour band. It leaves the
-strip while it is out, and the dock control sends it back. Positions persist in
-`floats.json` and are clamped on load, so a note parked near an edge cannot end
-up unreachable after a monitor change.
+wherever you want it. Drag it by its header strip or its colour band. It leaves
+the strip while it is out, and the dock control sends it back.
+
+Floats live in global screen coordinates, so dragging one from one monitor to
+the next is a single continuous movement rather than a jump at the seam. A note
+straddling two monitors is simply drawn by both. Positions persist in
+`floats.json`, and are clamped so a note can hang off an edge but never far
+enough that the header you drag it by becomes unreachable.
 
 A floating note is still a layer surface, not a window: no taskbar entry, no
 tiling, no focus stealing.
@@ -89,6 +93,7 @@ ledge open <id>         open one note for editing
 ledge rm <id>           move a note to the trash
 ledge move <id> <n>     move a note to position n (0 is first)
 ledge pop <id>          detach a note to float on the desktop
+ledge place <id> <x> <y>  move a floating note (global screen coordinates)
 ledge dock <id>         send a floating note back to the strip
 ledge peek              fan the strip open
 ledge close             collapse it

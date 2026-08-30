@@ -28,9 +28,19 @@ ShellRoot {
     }
   }
 
-  // Popped-out notes. One surface each, driven by the store's float table.
+  // Popped-out notes: one surface per floating note per output. Each surface
+  // decides for itself whether the note currently overlaps it, so a note being
+  // dragged across a seam is drawn by both and never jumps.
+  readonly property var floatTargets: {
+    var out = []
+    for (var i = 0; i < Store.floatIds.length; i++)
+      for (var j = 0; j < Quickshell.screens.length; j++)
+        out.push({ id: Store.floatIds[i], screen: Quickshell.screens[j] })
+    return out
+  }
+
   Variants {
-    model: Store.floatIds
+    model: shell.floatTargets
     delegate: Float {}
   }
 
@@ -57,9 +67,24 @@ ShellRoot {
     function pop(id: string): string {
       if (Store.indexOfId(id) < 0) return "unknown id"
       if (Store.isFloating(id)) return "already floating"
+      // Land it on the focused output rather than at the desktop origin,
+      // which on a multi-monitor layout may not be the screen you are looking at.
       var scr = Hyprland.focusedMonitor
-      Store.setFloating(id, 80, 120, scr ? scr.name : "")
+      var base = null
+      for (var i = 0; i < Quickshell.screens.length; i++)
+        if (scr && Quickshell.screens[i].name === scr.name) base = Quickshell.screens[i]
+      Store.setFloating(id, (base ? base.x : 0) + 80, (base ? base.y : 0) + 120)
       Bus.closeRequested()
+      return "ok"
+    }
+
+    // Global compositor coordinates, so this can place a note on any output.
+    function place(id: string, x: string, y: string): string {
+      if (!Store.isFloating(id)) return "not floating"
+      var px = parseInt(x, 10), py = parseInt(y, 10)
+      if (!isFinite(px) || !isFinite(py)) return "bad coordinates"
+      Store.moveFloat(id, px, py, 160)
+      Store.persistFloats()
       return "ok"
     }
 

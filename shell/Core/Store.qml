@@ -40,7 +40,12 @@ QtObject {
     root.liveCount = c
   }
 
-  // Popped-out notes: id -> { x, y, screen }.
+  // Popped-out notes: id -> { x, y }, in GLOBAL compositor layout coordinates.
+  //
+  // Global, not screen-local, so a note can be dragged from one monitor to the
+  // next as one continuous movement instead of being teleported at the seam.
+  // Each monitor draws whichever floats overlap it, so a note straddling the
+  // boundary is simply drawn by both.
   //
   // Kept out of the note files entirely. Position changes on every frame of a
   // drag, and rewriting a note's frontmatter that often would churn the file,
@@ -53,21 +58,54 @@ QtObject {
 
   function floatState(id) { return root.floats[id] || null }
 
-  function setFloating(id, x, y, screenName) {
+  function setFloating(id, x, y) {
     var f = JSON.parse(JSON.stringify(root.floats))
-    f[id] = { x: Math.round(x), y: Math.round(y), screen: screenName || "" }
+    f[id] = { x: Math.round(x), y: Math.round(y) }
     root.floats = f
     root.floatIds = Object.keys(f)
     persistFloats()
   }
 
-  function moveFloat(id, x, y) {
+  // Bounding box of every connected output, in global coordinates. A note is
+  // kept inside this rather than inside one screen, which is what lets a drag
+  // carry it across a monitor boundary.
+  function desktopBounds() {
+    var minX = 0, minY = 0, maxX = 0, maxY = 0, seen = false
+    for (var i = 0; i < Quickshell.screens.length; i++) {
+      var s = Quickshell.screens[i]
+      if (!seen) { minX = s.x; minY = s.y; maxX = s.x + s.width; maxY = s.y + s.height; seen = true; continue }
+      minX = Math.min(minX, s.x); minY = Math.min(minY, s.y)
+      maxX = Math.max(maxX, s.x + s.width); maxY = Math.max(maxY, s.y + s.height)
+    }
+    return { x: minX, y: minY, right: maxX, bottom: maxY }
+  }
+
+  // Keep a note grabbable. It may hang off an edge, but never so far that the
+  // header you drag it by is unreachable.
+  function clampFloat(x, y, w, h) {
+    var b = desktopBounds()
+    var keepX = Math.min(120, w)
+    var keepY = 34
+    return {
+      x: Math.round(Math.max(b.x - (w - keepX), Math.min(b.right - keepX, x))),
+      y: Math.round(Math.max(b.y, Math.min(b.bottom - keepY, y)))
+    }
+  }
+
+  function moveFloat(id, x, y, h) {
     if (!isFloating(id)) return
     var f = JSON.parse(JSON.stringify(root.floats))
-    f[id].x = Math.round(x)
-    f[id].y = Math.round(y)
+    var p = clampFloat(x, y, Config.cardWidth, h || 140)
+    f[id].x = p.x
+    f[id].y = p.y
     root.floats = f
     floatSaveTimer.restart()
+  }
+
+  function nudgeFloat(id, dx, dy, h) {
+    var cur = floatState(id)
+    if (!cur) return
+    moveFloat(id, cur.x + dx, cur.y + dy, h)
   }
 
   function unfloat(id) {

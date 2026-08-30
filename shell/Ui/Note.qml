@@ -35,6 +35,17 @@ Item {
   signal dockRequested()
   signal floatDragged(real dx, real dy)
   signal floatDragEnded()
+
+  // DragHandler reports cumulative translation; the store wants deltas. Shared
+  // so the band and the header behave identically.
+  property real dragLastX: 0
+  property real dragLastY: 0
+  function beginFloatDrag() { note.dragLastX = 0; note.dragLastY = 0 }
+  function stepFloatDrag(tx, ty) {
+    note.floatDragged(tx - note.dragLastX, ty - note.dragLastY)
+    note.dragLastX = tx
+    note.dragLastY = ty
+  }
   signal deleteRequested()
   signal dragStarted()
   signal dragMoved(real dy)
@@ -149,26 +160,15 @@ Item {
         anchors.left: note.bandRight ? parent.left : undefined
       }
 
-      // Grab handle for a popped-out note. The band is the obvious thing to
-      // take hold of, and using it keeps the whole text area free for
-      // selecting text rather than accidentally throwing the note across the
-      // screen.
+      // Secondary grab handle. The header is the main one; the band is here
+      // because it is the obvious thing to reach for on a note that is mostly
+      // text.
       DragHandler {
         enabled: note.floating
         target: null
-        cursorShape: Qt.OpenHandCursor
-        property real lastX: 0
-        property real lastY: 0
-        onActiveChanged: {
-          if (active) { lastX = 0; lastY = 0 }
-          else note.floatDragEnded()
-        }
-        onTranslationChanged: {
-          if (!active) return
-          note.floatDragged(translation.x - lastX, translation.y - lastY)
-          lastX = translation.x
-          lastY = translation.y
-        }
+        cursorShape: Qt.SizeAllCursor
+        onActiveChanged: active ? note.beginFloatDrag() : note.floatDragEnded()
+        onTranslationChanged: if (active) note.stepFloatDrag(translation.x, translation.y)
       }
     }
   }
@@ -251,6 +251,26 @@ Item {
       id: actions
       width: parent.width
       height: 16
+
+      // The whole header strip drags a popped-out note, not just the 6px band.
+      // Extended up and out into the note's padding so the grab area is a
+      // comfortable target rather than a hairline, and sitting behind the
+      // controls so their clicks still land.
+      Item {
+        anchors.fill: parent
+        anchors.topMargin: -note.pad
+        anchors.leftMargin: -note.pad
+        anchors.rightMargin: -note.pad
+        z: -1
+
+        DragHandler {
+          enabled: note.floating
+          target: null
+          cursorShape: Qt.SizeAllCursor
+          onActiveChanged: active ? note.beginFloatDrag() : note.floatDragEnded()
+          onTranslationChanged: if (active) note.stepFloatDrag(translation.x, translation.y)
+        }
+      }
 
       property string hint: ""
       // Deleting takes two clicks. The note does go to the trash rather than

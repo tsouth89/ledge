@@ -347,12 +347,16 @@ PanelWindow {
               }
               onPopOutRequested: {
                 var id = slot.noteId
-                // Drop it roughly where the note already is, so it does not
-                // teleport across the screen when it detaches.
+                // Detach roughly where the note already is, in global
+                // coordinates, so it does not teleport when it comes off the
+                // edge. Inset from the strip so it clearly reads as detached.
                 var top = strip.y - strip.contentY + slot.y
+                var localX = win.onLeft
+                  ? Config.tabPeek + 40
+                  : win.screen.width - Config.cardWidth - Config.tabPeek - 40
                 Store.setFloating(id,
-                                  win.onLeft ? 60 : Math.max(40, win.screen.width - Config.cardWidth - 80),
-                                  Math.max(40, Math.min(win.screen.height - 200, top)))
+                                  win.screen.x + Math.max(20, localX),
+                                  win.screen.y + Math.max(20, top))
                 win.closeNow()
               }
 

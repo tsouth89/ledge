@@ -272,6 +272,17 @@ ShellRoot {
 
     function ping(): string { return "ok" }
 
+    // Internal counters, for diagnosing odd behaviour and for the test suite.
+    function stats(): string {
+      return JSON.stringify({
+        notes: Store.notes.count,
+        live: Store.liveCount,
+        floating: Store.floatIds.length,
+        reaped: Store.reapCount,
+        ready: Store.ready
+      })
+    }
+
     function create(body: string): string {
       var id = Store.create(body || "", "")
       Bus.openRequested(id)

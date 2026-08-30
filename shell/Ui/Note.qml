@@ -554,9 +554,17 @@ Item {
         property bool syncing: false
 
         function loadFrom(id) {
+          var n = id.length ? Store.get(id) : null
+
+          // A row that exists but has not been read off disk yet carries an
+          // empty body that means "not known", not "empty". Loading from it
+          // would blank an editor that already has the note's real text in it.
+          // Leave `boundId` alone too, so write-back stays blocked until the
+          // content actually arrives and this runs again.
+          if (n && !n.loaded && !n.pending && editor.text.length > 0) return
+
           syncing = true
           boundId = id
-          var n = id.length ? Store.get(id) : null
           text = n ? String(n.body || "") : ""
           syncing = false
         }

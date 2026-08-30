@@ -104,6 +104,28 @@ TRASHED=$(basename "$(find "$DATA/trash" -name "*$B*" | head -1)")
 ipc restore "$TRASHED" >/dev/null; sleep 1.2
 is "restored note is back" "$(count)" "4"
 
+# --- writes must not disturb the note being written ---------------------------
+# The notes directory is watched, so every save triggers a rescan. Restarting a
+# running scan handed back a truncated listing, which read as "no notes exist"
+# and reaped every row; the next scan re-added them empty. Whoever had a note
+# open watched it blank itself mid-sentence.
+CHURN=$(ipc create "keep line")
+settle
+for extra in a b c d e; do
+  ipc append "line $extra" >/dev/null
+  sleep 0.5
+done
+sleep 1
+reaped=$(ipc stats | python3 -c 'import sys,json;print(json.load(sys.stdin)["reaped"])')
+is "writing a note never tears its row down" "$reaped" "0"
+churn_body=$(awk 'BEGIN{c=0} /^---$/{c++; next} c>=2' "$DATA/notes/$CHURN.md" | tr -d '\n')
+is "repeated writes keep every line" "$churn_body" "keep lineline aline bline cline dline e"
+is "and do not duplicate the note" "$(find "$DATA/notes" -name "$CHURN.md" | wc -l)" "1"
+is "and leave it loaded, not a blank placeholder" \
+   "$(ipc list | python3 -c "
+import sys,json
+print(next((n['title'] for n in json.load(sys.stdin) if n['id']=='$CHURN'), 'MISSING'))")" "keep line"
+
 # --- reminders ----------------------------------------------------------------
 ipc remind "$A" 90m >/dev/null
 settle

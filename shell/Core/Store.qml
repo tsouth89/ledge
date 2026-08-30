@@ -584,7 +584,10 @@ QtObject {
       // else came from a directory listing, so a row whose file has gone is
       // stale -- including one still waiting on its first load, which is
       // exactly the ghost a delete used to leave behind.
-      if (!seen[n.noteId] && !n.pending) notes.remove(j)
+      if (!seen[n.noteId] && !n.pending) {
+        root.reapCount++
+        notes.remove(j)
+      }
     }
 
     applyOrder()
@@ -854,11 +857,44 @@ QtObject {
       'mkdir -p "$1" "$2" && cd "$1" && ls -1 2>/dev/null || true',
       "_", root.notesDir, root.trashDir]
     stdout: StdioCollector {
-      onStreamFinished: root.syncFiles(text)
+      onStreamFinished: root.scanBuffer = text
+    }
+    onExited: function (exitCode) {
+      // A scan that did not finish cleanly says nothing about what is on disk,
+      // and acting on it would reap live notes.
+      if (exitCode === 0) root.syncFiles(root.scanBuffer)
+      root.scanBuffer = ""
+      if (root.scanQueued) {
+        root.scanQueued = false
+        Qt.callLater(root.rescan)
+      }
     }
   }
 
-  function rescan() { scanProc.running = false; scanProc.running = true }
+  // Scans are serialised, and only a cleanly finished one is believed.
+  //
+  // This used to restart the scan process mid-flight on every request. The
+  // directory is watched, and every autosave touches it, so requests stack up
+  // constantly -- and killing a running `ls` hands back a truncated or empty
+  // listing. An empty listing reads as "there are no notes", so the reap pass
+  // below deleted every row and the next scan re-added them as blank
+  // placeholders. For whichever note was open at the time, that emptied the
+  // editor in front of the user while they were typing in it.
+  property bool scanQueued: false
+  property string scanBuffer: ""
+
+  // How many times a scan has decided a row's file is gone. Steady-state this
+  // only moves when a note is genuinely deleted from disk. If it climbs while
+  // notes are merely being edited, scanning is racing its own writes and live
+  // notes are being torn down and rebuilt underneath the UI -- which is what
+  // blanked an open editor mid-sentence. Exposed so that is assertable rather
+  // than something you notice by losing a note.
+  property int reapCount: 0
+
+  function rescan() {
+    if (scanProc.running) { root.scanQueued = true; return }
+    scanProc.running = true
+  }
 
   // FileView cannot watch a path that does not exist yet, but it can watch the
   // directory holding it. A change here means a note file was created or

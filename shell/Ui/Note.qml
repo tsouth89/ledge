@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import qs.Core
+import "../Core/Markup.js" as Markup
 
 // One note, in all three of its states.
 //
@@ -18,6 +19,8 @@ Item {
   required property string body
   required property bool pinned
   required property int index
+  // Per-note override for markdown styling, from `styled: false` frontmatter.
+  property bool styledNote: true
 
   property bool peeked: false
   property bool open: false
@@ -443,6 +446,11 @@ Item {
       }
     }
 
+    // Whether this note paints its markdown. Off entirely in a proportional
+    // font: the styled layer only lines up with the editor above it while bold
+    // and regular share an advance width.
+    readonly property bool styled: Config.styling && note.styledNote
+
     Flickable {
       id: scroller
       width: parent.width
@@ -451,6 +459,29 @@ Item {
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       interactive: contentHeight > height
+
+      // The styled layer. Sits behind a transparent editor holding the real
+      // text, matching it glyph for glyph, so what you see is formatted and
+      // what you edit is still exactly the characters you typed. No modes.
+      Text {
+        id: styledLayer
+        width: scroller.width
+        visible: layout.styled
+        textFormat: Text.RichText
+        wrapMode: editor.wrapMode
+        font: editor.font
+        color: note.ink
+        text: visible ? "<div style='white-space:pre-wrap'>"
+                        + Markup.toHtml(editor.text, {
+                            marker: Theme.withAlpha(note.ink, 0.38),
+                            strong: Theme.withAlpha(note.ink, 1.0),
+                            link: note.tint,
+                            code: note.tint,
+                            accent: note.tint
+                          })
+                        + "</div>"
+                      : ""
+      }
 
       TextArea {
         id: editor
@@ -494,9 +525,27 @@ Item {
 
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontBase
-        color: note.ink
-        selectionColor: Theme.withAlpha(note.tint, 0.45)
-        selectedTextColor: note.ink
+        // Transparent when the styled layer is showing the text instead. The
+        // selection colour has to stay translucent for the same reason: an
+        // opaque highlight would paint over the layer underneath and blank the
+        // words being selected.
+        color: layout.styled ? "transparent" : note.ink
+        selectionColor: Theme.withAlpha(note.tint, layout.styled ? 0.32 : 0.45)
+        selectedTextColor: layout.styled ? "transparent" : note.ink
+
+        // The caret takes its colour from `color`, which is transparent above,
+        // so it has to be drawn explicitly or it disappears.
+        cursorDelegate: Rectangle {
+          visible: editor.activeFocus
+          width: 1
+          color: note.ink
+          Timer {
+            running: editor.activeFocus
+            interval: 530
+            repeat: true
+            onTriggered: parent.opacity = parent.opacity > 0.5 ? 0 : 1
+          }
+        }
         placeholderText: "Write something"
         placeholderTextColor: Theme.withAlpha(note.ink, 0.35)
 

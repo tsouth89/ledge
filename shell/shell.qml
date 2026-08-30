@@ -52,17 +52,23 @@ ShellRoot {
 
   function noteTitleRe(id) { return "^(ledge-note:" + shell.reEscape(id) + ")$" }
 
-  // `exact = true` makes the coordinates absolute. Without it Hyprland treats
-  // move as relative to whichever monitor the window opens on, so a note saved
-  // at x=400 reopened at 2448 when the second monitor happened to be focused.
-  function placementLua(id, x, y, w, h) {
-    if (!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return ""
-    // Stored geometry is the note rectangle; the window carries a transparent
-    // margin around it for the note's shadow, so convert on the way out.
+  // Placement is expressed the way Hyprland applies it: pin the window to a
+  // named output, then offset within that output. `exact = true` claims to make
+  // coordinates absolute and does not do so reliably on a secondary monitor,
+  // and the resulting drift compounds on every restart.
+  //
+  // Stored geometry is the note rectangle; the window carries a transparent
+  // margin around it for the note's shadow, so convert on the way out.
+  function placementLua(id, st) {
+    if (!st) return ""
+    if (![st.x, st.y, st.w, st.h].every(isFinite)) return ""
     var pad = Config.floatShadowPad
+    var monitor = st.monitor && st.monitor.length
+                ? ', monitor = "' + st.monitor + '"' : ""
     return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
-         + ', move = { ' + Math.round(x - pad) + ', ' + Math.round(y - pad) + ', exact = true }'
-         + ', size = { ' + Math.round(w + pad * 2) + ', ' + Math.round(h + pad * 2) + ' } })'
+         + monitor
+         + ', move = { ' + Math.round(st.x - pad) + ', ' + Math.round(st.y - pad) + ' }'
+         + ', size = { ' + Math.round(st.w + pad * 2) + ', ' + Math.round(st.h + pad * 2) + ' } })'
   }
 
   // hyprctl eval wraps its argument in `return ...`, so several statements have
@@ -117,9 +123,7 @@ ShellRoot {
   function applyPlacementRules() {
     var lines = []
     for (var id in Store.floats) {
-      var f = Store.floats[id]
-      var rule = shell.placementLua(id, f.x, f.y,
-                                    f.w || Config.cardWidth, f.h || 200)
+      var rule = shell.placementLua(id, Store.floats[id])
       if (rule.length) lines.push(rule)
     }
     if (!lines.length) return
@@ -163,7 +167,16 @@ ShellRoot {
         ruleProc.exited.disconnect(once)
         Store.setFloating(id, x, y, w, h)
       })
-      ruleProc.command = ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, x, y, w, h)])]
+      // Resolve to the output the note is being dropped on before writing the
+      // rule, so both agree on which monitor this is.
+      var scr = Store.screenAt(x, y)
+      var st = {
+        monitor: scr ? scr.name : "",
+        x: x - (scr ? scr.x : 0),
+        y: y - (scr ? scr.y : 0),
+        w: w, h: h
+      }
+      ruleProc.command = ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st)])]
       ruleProc.running = true
     }
   }

@@ -45,12 +45,19 @@ QtObject {
     root.liveCount = c
   }
 
-  // Popped-out notes: id -> { x, y }, in GLOBAL compositor layout coordinates.
+  // Popped-out notes: id -> { monitor, x, y, w, h }, where x and y are relative
+  // to the named output.
   //
-  // Global, not screen-local, so a note can be dragged from one monitor to the
-  // next as one continuous movement instead of being teleported at the seam.
-  // Each monitor draws whichever floats overlap it, so a note straddling the
-  // boundary is simply drawn by both.
+  // This is stored the way Hyprland thinks about it, not the way it is nicer to
+  // reason about. A `move` window rule is applied relative to whichever monitor
+  // the window opens on; `exact = true` is supposed to make it absolute and
+  // does not reliably do so when the window opens on a secondary output. The
+  // failure mode is vicious rather than cosmetic: the note lands at
+  // stored + monitor_origin, that position is then learned back, and every
+  // restart shifts it another monitor width until it is off-screen entirely.
+  //
+  // Naming the output and keeping the offset relative to it sidesteps the whole
+  // question, and survives a monitor being unplugged more gracefully besides.
   //
   // Kept out of the note files entirely. Position changes on every frame of a
   // drag, and rewriting a note's frontmatter that often would churn the file,
@@ -63,11 +70,32 @@ QtObject {
 
   function floatState(id) { return root.floats[id] || null }
 
-  function setFloating(id, x, y, w, h) {
+  // Which output contains a global point, by preference, else the first.
+  function screenAt(gx, gy) {
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++) {
+      var s = screens[i]
+      if (gx >= s.x && gx < s.x + s.width && gy >= s.y && gy < s.y + s.height) return s
+    }
+    return screens.length ? screens[0] : null
+  }
+
+  function screenNamed(name) {
+    var screens = Quickshell.screens
+    for (var i = 0; i < screens.length; i++)
+      if (screens[i].name === name) return screens[i]
+    return screens.length ? screens[0] : null
+  }
+
+  // Takes GLOBAL coordinates and stores them against whichever output they land
+  // on. Callers think in global terms; only the stored form is relative.
+  function setFloating(id, gx, gy, w, h) {
+    var scr = screenAt(gx, gy)
     var f = JSON.parse(JSON.stringify(root.floats))
     f[id] = {
-      x: Math.round(x),
-      y: Math.round(y),
+      monitor: scr ? scr.name : "",
+      x: Math.round(gx - (scr ? scr.x : 0)),
+      y: Math.round(gy - (scr ? scr.y : 0)),
       w: Math.round(w || Config.cardWidth),
       h: Math.round(h || 180)
     }
@@ -79,16 +107,45 @@ QtObject {
   // The note rectangle, in global compositor coordinates. Written back from
   // what the compositor actually did, since it owns the geometry of a
   // popped-out note and a Wayland client is never told where it is.
-  function setFloatGeometry(id, x, y, w, h) {
+  function setFloatGeometry(id, gx, gy, w, h) {
     if (!isFloating(id)) return
-    if (![x, y, w, h].every(isFinite)) return
+    if (![gx, gy, w, h].every(isFinite)) return
+
+    var scr = screenAt(gx, gy)
+    // A position on no output at all is not something to learn from. Refusing
+    // it is the backstop against a placement bug walking a note off the desktop
+    // one restart at a time.
+    if (!scr) return
+
+    var next = {
+      monitor: scr.name,
+      x: Math.round(gx - scr.x),
+      y: Math.round(gy - scr.y),
+      w: Math.round(w),
+      h: Math.round(h)
+    }
     var cur = root.floats[id]
-    if (cur.x === Math.round(x) && cur.y === Math.round(y)
-        && cur.w === Math.round(w) && cur.h === Math.round(h)) return
+    if (cur.monitor === next.monitor && cur.x === next.x && cur.y === next.y
+        && cur.w === next.w && cur.h === next.h) return
+
     var f = JSON.parse(JSON.stringify(root.floats))
-    f[id] = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) }
+    f[id] = next
     root.floats = f
     floatSaveTimer.restart()
+  }
+
+  // Stored position back in global terms, for anything that needs to draw or
+  // reason about it.
+  function floatGlobal(id) {
+    var st = root.floats[id]
+    if (!st) return null
+    var scr = screenNamed(st.monitor)
+    return {
+      x: st.x + (scr ? scr.x : 0),
+      y: st.y + (scr ? scr.y : 0),
+      w: st.w, h: st.h,
+      monitor: scr ? scr.name : ""
+    }
   }
 
   // Bounding box of every connected output, in global coordinates. A note is

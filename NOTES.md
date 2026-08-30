@@ -162,6 +162,23 @@ application is gated on a `Store.floatsReady` *property* rather than a signal --
 a singleton's file load can finish before shell.qml exists to connect to it, and
 that race showed up as every note being tiled.
 
+**`exact = true` on a `move` window rule does not reliably mean absolute.** On a
+secondary output the window still lands at stored + monitor_origin. That would be
+a cosmetic annoyance except the position is then read back and learned, so every
+restart shifts the note another monitor width until it is off the desktop
+entirely. Observed: a note reached x=4176 on a desktop 3584 wide. Float geometry
+is therefore stored as `{ monitor, x, y }` relative to a named output, which is
+how Hyprland actually applies it, and `setFloatGeometry` refuses to learn a
+position that lands on no output at all as a backstop.
+
+**The styled markdown layer must not change a single character's width.** It is
+painted behind a transparent editor holding the real text; if one glyph shifts,
+the caret drifts away from the character it belongs to. That is why markers are
+dimmed rather than hidden, why `- [ ]` is not swapped for a checkbox glyph, and
+why headings change weight and colour but never size. Verified by measuring: the
+same line occupies rows 65-75 and columns 18-299 in both modes. Bold sharing an
+advance width is a property of monospaced faces only, hence the `styling` switch.
+
 **A directory rescan can race a file move.** Deleting a note removes its row and
 *then* moves the file to trash. A rescan landing in between still sees the file
 and re-adds the row as an unloaded placeholder, and the reap pass used to skip
@@ -220,7 +237,8 @@ leave before enter, and without the re-check the strip latches open.
 ## Next, roughly in order
 
 1. **Image paste** - as an attachment chip, not `![]()` markdown syntax.
-2. **Inline markdown styling** behind the `styling` flag. The approach that works
+2. **Markup coverage** - tables and fenced code blocks are deliberately absent;
+   both need block layout, which the same-width invariant forbids. behind the `styling` flag. The approach that works
    without a mode split: a styled `Text` layer behind a transparent `TextEdit`.
    Only aligns if bold and regular share advance widths, i.e. a monospace font.
    Note that in the config docs.

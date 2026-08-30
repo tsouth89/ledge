@@ -181,10 +181,21 @@ Neither ordering nor float position lives in the frontmatter. Dragging a note to
 rewrites one small `order` file rather than touching every note below it, which
 keeps reorders out of the way in git and in any file-sync tool.
 
-Notes are plain text. There is no markdown rendering and no edit/preview mode,
-because a note you hover for half a second should not have modes. `- [ ]` is
-special-cased: click the box to tick it, and the file keeps exactly the
-characters you typed.
+Notes are plain text, and stay plain text. There is no edit/preview mode,
+because a note you hover for half a second should not have modes.
+
+Markdown is styled in place instead. Headings get weight, `**bold**` goes bold,
+`*italic*` leans, `~~strike~~` strikes, backticks and links pick up the note's
+colour, and a ticked `- [x]` strikes its line through. Every marker stays on
+screen, dimmed, and every character stays exactly where you typed it, because
+what you are editing is still the plain text underneath. Click a `- [ ]` box to
+tick it.
+
+The one real constraint: the styled layer only lines up with the text while bold
+and regular share an advance width, which is true of a monospaced font and not
+of a proportional one. Headings change weight and colour but never size, for the
+same reason. Set `"styling": false`, or `styled: false` in one note's
+frontmatter, to turn it off.
 
 ## Theming
 

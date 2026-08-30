@@ -272,6 +272,7 @@ PanelWindow {
             required property string title
             required property bool archived
             required property bool pinned
+            required property bool styled
 
             width: column.width
             readonly property bool hidden: archived || Store.isFloating(noteId)
@@ -303,6 +304,7 @@ PanelWindow {
               body: slot.body
               pinned: slot.pinned
               index: slot.index
+              styledNote: slot.styled
 
               peeked: win.peeked
               open: win.openId === slot.noteId

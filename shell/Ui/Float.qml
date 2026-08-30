@@ -71,6 +71,7 @@ FloatingWindow {
       label: win.note ? Store.deriveTitle(win.note.body, win.note.title) : ""
       body: win.note ? win.note.body : ""
       pinned: win.note ? win.note.pinned : false
+      styledNote: win.note ? win.note.styled !== false : true
       index: 0
 
       floating: true

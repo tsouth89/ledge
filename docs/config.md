@@ -53,6 +53,10 @@ mid-reach.
 
 | key | default | |
 |---|---|---|
-| `styling` | `true` | reserved for inline markdown styling; not yet implemented |
+| `styling` | `true` | style markdown in place. Turn off for a plain text box |
 
 Per-note `styled: false` in a note's frontmatter overrides it.
+
+Styling paints a formatted layer behind a transparent editor holding the real
+text, so it needs a monospaced font: the two only line up while bold and regular
+share an advance width. With a proportional font, turn `styling` off.

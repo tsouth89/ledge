@@ -179,6 +179,14 @@ why headings change weight and colour but never size. Verified by measuring: the
 same line occupies rows 65-75 and columns 18-299 in both modes. Bold sharing an
 advance width is a property of monospaced faces only, hence the `styling` switch.
 
+**Pick text colour by measuring contrast, not by blending toward black.** Tab
+labels were a fixed 72% mix toward black, which reads fine on half the palette
+and disappears into the other half. `Theme.tabTextColor` computes the swatch's
+relative luminance and drives the ink to whichever end of the range actually
+contrasts. Related: rotated text is already harder to read, so setting it in
+small capitals with letter-spacing on top of that was compounding the problem
+while also making labels elide sooner, since capitals are wider.
+
 **Every destructive control confirms, in every surface.** The delete on a note
 armed on the first click and acted on the second; the identical-looking delete
 in the All Notes rows did it in one. A row of small icons being scanned through

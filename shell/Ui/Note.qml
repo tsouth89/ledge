@@ -204,18 +204,22 @@ Item {
     visible: opacity > 0.01
     Behavior on opacity { NumberAnimation { duration: 150 } }
 
+    // Set in the note's own case at close to body size, not shouted in 9px
+    // capitals. Rotating text already costs legibility; all-caps takes more
+    // width per character on top of that, so the label ran out of room and
+    // elided sooner as well as being harder to read.
     Text {
       anchors.centerIn: parent
       rotation: -90
-      width: note.height - 14
+      width: note.height - 12
       text: note.label
       elide: Text.ElideRight
       horizontalAlignment: Text.AlignHCenter
       font.family: Theme.fontFamily
-      font.pixelSize: Math.max(9, Theme.fontBase - 3)
-      font.letterSpacing: 0.8
-      font.capitalization: Font.AllUppercase
-      color: Theme.mix(note.tint, Theme.dark ? "#000000" : "#ffffff", 0.72)
+      font.pixelSize: Math.max(10, Theme.fontBase - 1)
+      font.weight: Font.DemiBold
+      font.letterSpacing: 0.2
+      color: Theme.tabTextColor(note.colorKey)
     }
   }
 

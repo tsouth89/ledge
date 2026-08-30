@@ -45,8 +45,10 @@ QtObject {
   // under about 8 gets hard to hit without overshooting off-screen.
   readonly property int tabRest: Math.max(6, num("tabRest", 12))
   // Width once the strip notices the cursor and the labels rotate into view.
-  readonly property int tabPeek: Math.max(root.tabRest, num("tabPeek", 30))
-  readonly property int tabHeight: Math.max(28, num("tabHeight", 86))
+  readonly property int tabPeek: Math.max(root.tabRest, num("tabPeek", 34))
+  // A tab's height is also the length of its label, since the text is rotated
+  // along it. Too short and every note reads as an ellipsis.
+  readonly property int tabHeight: Math.max(28, num("tabHeight", 104))
   readonly property int tabGap: Math.max(0, num("tabGap", 4))
 
   readonly property int cardWidth: Math.max(180, num("cardWidth", 300))

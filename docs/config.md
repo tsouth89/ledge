@@ -18,8 +18,8 @@ the values below are the defaults.
 | key | default | |
 |---|---|---|
 | `tabRest` | `12` | width of a resting dash. Under about 8 gets hard to hit without overshooting off-screen |
-| `tabPeek` | `30` | width once the strip notices the cursor and labels rotate into view |
-| `tabHeight` | `86` | a dash's height. Shorter truncates longer labels |
+| `tabPeek` | `34` | width once the strip notices the cursor and labels rotate into view |
+| `tabHeight` | `104` | a dash's height, which is also how long its label can be, since the text runs along it. Shorter means more notes fit before the strip scrolls, at the cost of every label ending in an ellipsis |
 | `tabGap` | `4` | |
 | `maxVisible` | `10` | scroll the strip past this many notes |
 

@@ -192,6 +192,28 @@ QtObject {
                 : Qt.hsla(swatchHue(key), 0.45, 0.16, 1)
   }
 
+  // Relative luminance, sRGB. Used to decide whether a surface wants dark or
+  // light text rather than assuming, which is what made tab labels unreadable
+  // on the lighter half of the palette.
+  function luminance(c) {
+    var col = Qt.color(c)
+    function channel(v) {
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    return 0.2126 * channel(col.r) + 0.7152 * channel(col.g) + 0.0722 * channel(col.b)
+  }
+
+  // Ink for text sitting directly on a swatch, e.g. the label on an edge tab.
+  // Same hue so it still belongs to the note, but driven to whichever end of
+  // the lightness range actually contrasts with the tab underneath it.
+  function tabTextColor(key) {
+    var tab = tabColor(key)
+    var hue = swatchHue(key)
+    return luminance(tab) > 0.34
+         ? Qt.hsla(hue, Math.min(0.9, refSat * 1.1), 0.11, 1)
+         : Qt.hsla(hue, 0.18, 0.96, 1)
+  }
+
   // ------------------------------------------------------------- files
 
   property FileView nameFile: FileView {

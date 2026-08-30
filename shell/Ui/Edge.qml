@@ -26,11 +26,15 @@ PanelWindow {
   property bool editing: false
   property string hoveredId: ""
 
-  // Geometry of the open note, published by whichever slot owns it. Used to
-  // carve that note out of the input region; a plain property keeps the
-  // binding reactive where mapToItem would be a one-shot.
-  property real openY: 0
-  property real openH: 0
+  // The open note's item, so the input region can be cut from it directly.
+  //
+  // This used to be a pair of numbers pushed here from the delegate's change
+  // handlers, which only fired for the note's own y and height -- never for its
+  // slot moving, the strip re-centring, or the list scrolling. A note appended
+  // at the end of the strip therefore got an input region left somewhere near
+  // the top, and could not be clicked into at all. Binding a Region to the item
+  // makes Quickshell track its real geometry instead.
+  property Item openItem: emptyRegion
 
   // The input region below is the hit test. Anything the pointer can reach on
   // this surface is either the strip or the open note, so a single flag covers
@@ -47,9 +51,17 @@ PanelWindow {
 
   WlrLayershell.namespace: "ledge"
   WlrLayershell.layer: Config.layer === "overlay" ? WlrLayer.Overlay : WlrLayer.Top
-  // Focus only while a note is open, so a stray click on the resting strip can
-  // never pull keyboard focus off the window underneath.
-  WlrLayershell.keyboardFocus: openId !== "" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+  // Accept focus from the moment the strip fans out, not only once a note is
+  // open.
+  //
+  // The compositor decides whether to grant keyboard focus at the instant of
+  // the click, using whatever this said *then*. Flipping it to OnDemand as a
+  // result of the click is too late: clicking the + opened a note that could
+  // never be typed into, because at the moment of the press the surface was
+  // still refusing focus. A resting strip still takes nothing.
+  WlrLayershell.keyboardFocus: (peeked || openId !== "")
+                               ? WlrKeyboardFocus.OnDemand
+                               : WlrKeyboardFocus.None
   exclusionMode: ExclusionMode.Ignore
   color: "transparent"
 
@@ -64,7 +76,7 @@ PanelWindow {
 
   mask: Region {
     Region { item: stripMask }
-    Region { item: openMask }
+    Region { item: win.openItem }
   }
 
   // ------------------------------------------------------- state machine
@@ -82,6 +94,7 @@ PanelWindow {
     win.openId = ""
     win.editing = false
     win.hoveredId = ""
+    win.openItem = emptyRegion
     // Discard before flushing, so a note nobody typed into is never written
     // only to be deleted a moment later.
     if (was.length) Store.discardIfBlank(was)
@@ -210,12 +223,12 @@ PanelWindow {
       Behavior on width { NumberAnimation { duration: 160 } }
     }
 
+    // Stand-in for "no open note". A Region pointed at a null item covers the
+    // whole surface, which is the opposite of what is wanted here.
     Item {
-      id: openMask
-      width: win.openId !== "" ? Config.cardWidth : 0
-      height: win.openId !== "" ? win.openH : 0
-      y: win.openY
-      x: win.onLeft ? 0 : content.width - width
+      id: emptyRegion
+      width: 0
+      height: 0
     }
 
     // ------------------------------------------------------------ strip
@@ -319,12 +332,13 @@ PanelWindow {
                 NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
               }
 
-              onYChanged: if (open) win.openY = strip.y - strip.contentY + slot.y + y
-              onHeightChanged: if (open) win.openH = height
+              // Hand the item itself over rather than a snapshot of where it
+              // was. The identity check stops a note that is closing from
+              // clearing the region belonging to the note that just replaced
+              // it, since the two changes arrive in that order.
               onOpenChanged: {
-                if (!open) return
-                win.openY = strip.y - strip.contentY + slot.y + y
-                win.openH = height
+                if (open) win.openItem = noteItem
+                else if (win.openItem === noteItem) win.openItem = emptyRegion
               }
 
               onEntered: {

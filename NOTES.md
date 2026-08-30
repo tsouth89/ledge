@@ -135,6 +135,24 @@ application is gated on a `Store.floatsReady` *property* rather than a signal --
 a singleton's file load can finish before shell.qml exists to connect to it, and
 that race showed up as every note being tiled.
 
+**Cut input regions from the item, not from a snapshot of where it was.** The
+open note's `Region` was fed a y/height pushed over from the delegate's change
+handlers, which fired for the note's own geometry but not for its slot moving,
+the strip re-centring, or the list scrolling. A note created by the + is
+appended at the end of the strip, so its slot settles *after* that fired and the
+input region was left near the top of the screen: the note was drawn but nothing
+could be clicked. `Region { item: ... }` tracks the real geometry. This is the
+same mistake as the editor `text` binding, from the opposite direction: there,
+state that should have been imperative was declarative; here, geometry that
+should have been declarative was imperative.
+
+**A layer surface's `keyboardFocus` is read at the instant of the click.**
+Flipping it to OnDemand *because* of a click is too late -- the compositor has
+already decided not to grant focus. The strip accepted focus only once a note
+was open, so clicking the + opened a note that could never be typed into. It now
+accepts focus from the moment the strip fans out, which is the only time
+anything on it is clickable anyway.
+
 **Never auto-focus a floating note's editor.** Popped-out notes are pinned and
 sit on every workspace; focusing the editor because the note is floating means
 it quietly eats keystrokes meant for whatever you were actually typing into.

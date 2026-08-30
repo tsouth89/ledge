@@ -29,7 +29,7 @@ repairing after being used as test subjects, and one lost its archived flag.
 **Before changing anything**
 
 ```bash
-./test/smoke.sh          # 39 assertions, needs a Wayland session
+./test/smoke.sh          # 40 assertions, needs a Wayland session
 ledge restart            # reload after editing QML
 ledge stats              # notes, live, floating, reaped, ready
 ```
@@ -106,6 +106,21 @@ is `hyprctl dispatch 'hl.dsp.cursor.move({ x = 2045, y = 520 })'`. The bare
 
 **Do not loop `grim` rapidly** to capture animation frames; it trips the desktop
 screenshot toolbar and pollutes the capture.
+
+**`hyprctl` reports refusals on stdout with exit status 0.** Nothing about a
+rejected command is detectable from its exit code, and a stderr-only check sees
+silence. Read the text: Hyprland answers `ok`, and only `ok`, when it accepts a
+command. Anything else is a failure. This is why popped-out notes kept tiling
+after the bug looked fixed, and why `checkRuleResult` now tests for `ok` rather
+than grepping the reply for the word "error".
+
+**`Hyprland.usingLua` is populated asynchronously and reads false until it is
+ready.** It flips to true within about 500ms of startup, which is *after* the
+window rules go in. Reading it at startup sent every rule down the classic
+parser route, Hyprland refused them on stdout with exit 0, and every popped-out
+note tiled with nothing in the log. The parser is no longer predicted at all:
+the `eval` route is tried first and the reply decides. Do not reintroduce a
+readiness guess here.
 
 ## Design decisions worth keeping
 
@@ -347,7 +362,8 @@ leave before enter, and without the re-check the strip latches open.
 ```
 
 Runs a second Ledge instance against a throwaway `LEDGE_DATA_DIR` and drives it
-over IPC, asserting on what lands on disk. It never touches real notes. The
+over IPC, asserting on what lands on disk, and where the compositor is the thing
+that matters, on what Hyprland reports. It never touches real notes. The
 strip appears on screen for a few seconds while it runs, which is the point:
 what is being tested is a real shell, not a mock.
 

@@ -151,6 +151,13 @@ import json;d=json.load(open('$DATA/floats.json'));print('$A' in d)" 2>/dev/null
 is "popped note leaves the strip listing" "$(ipc list | python3 -c "
 import sys,json
 print(sum(1 for n in json.load(sys.stdin) if n['id']=='$A'))")" "1"
+# The window rules are what make a popped note a sticky note rather than just
+# another tiled window, and they have failed silently more than once. Ask the
+# compositor rather than trusting that the rules were sent.
+is "popped note floats in the compositor" "$(hyprctl -j clients 2>/dev/null | python3 -c "
+import sys,json
+c = next((c for c in json.load(sys.stdin) if c['title'] == 'ledge-note:$A'), None)
+print('no window' if c is None else 'floating' if c['floating'] else 'tiled')" 2>/dev/null)" "floating"
 ipc dock "$A" >/dev/null; sleep 0.8
 is "docked note is no longer floating" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"

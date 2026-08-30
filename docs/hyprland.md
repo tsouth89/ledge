@@ -59,14 +59,22 @@ Placement is a second rule per note, carrying the position and size from
 ```lua
 hl.window_rule({
   match = { title = "^(ledge-note:<id>)$" },
-  move = { x, y, exact = true },
+  monitor = "<output name>",
+  move = { x, y },
   size = { w, h },
 })
 ```
 
-`exact = true` matters: without it Hyprland treats the coordinates as relative to
-whichever monitor the window opens on, so a note saved near the left of your
-desktop reopens shifted by the width of everything to its left.
+Coordinates are relative to the output the rule names, which is why the rule
+names one. `floats.json` stores the note in global desktop coordinates and
+records which output it was dropped on, and Ledge subtracts that output's origin
+on the way out.
+
+The obvious alternative is `move = { x, y, exact = true }`, which claims to take
+absolute coordinates and skip the output entirely. It does not do so reliably on
+a secondary monitor, and because Ledge reads the geometry back off the
+compositor and stores it again, the error compounds a little on every restart
+until the note walks off the screen.
 
 The base rule and the placement rules are applied as **separate** `eval` calls.
 A malformed chunk is rejected in full, so putting them together would mean one
@@ -82,7 +90,8 @@ tiled outright.
 ## Two config parsers, two routes
 
 Hyprland has two config parsers and they take window rules by completely
-different routes. Ledge checks which one is in use and picks accordingly.
+different routes. Ledge tries the Lua route first and lets the compositor's own
+answer pick the other one.
 
 Under the Lua parser (Omarchy 4, and anything else opting in) `hyprctl keyword`
 refuses to run:
@@ -104,7 +113,21 @@ documented syntax but has not been run against a classic-parser Hyprland**, for
 want of one to test on. If popped-out notes tile for you, that is the first
 thing to check, and `ledge version` reports your compositor.
 
-So the rules go through `hyprctl eval`, which wraps its argument in `return
+Which parser is in use is not predicted. Quickshell exposes `Hyprland.usingLua`,
+but it is filled in asynchronously and still reads false for the first few
+hundred milliseconds of the session, which is exactly when the startup rules go
+in. Reading it there sent every rule down the classic route on a Lua-parser
+Hyprland, and because `hyprctl` answers a refusal on **stdout** with exit status
+0, nothing failed loudly: the rules were simply dropped and every popped-out
+note tiled.
+
+So the Lua route goes in first and the reply decides. Hyprland answers `ok` and
+nothing else when it accepts a command; anything else means the classic route,
+which is then run instead. That needs no readiness signal and does not depend on
+the exact wording of the refusal. Any reply other than `ok` to the rules Ledge
+finally settles on is logged as a warning.
+
+The Lua route is `hyprctl eval`, which wraps its argument in `return
 ...`. That only takes a single expression, so several rules are applied as one
 immediately-invoked function:
 

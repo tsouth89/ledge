@@ -83,7 +83,36 @@ ShellRoot {
   // parsers. Use eval." -- while the classic parser has no `hl.window_rule` to
   // call. Assuming either one strands every user of the other with popped-out
   // notes that tile instead of floating.
-  readonly property bool luaConfig: Hyprland.usingLua
+  //
+  // Which parser is in use is not predicted, and in particular is not read from
+  // `Hyprland.usingLua`. That property is filled in asynchronously and still
+  // reads false for the first few hundred milliseconds of the session, which is
+  // exactly when the startup rules go in. Trusting it there sent every rule
+  // down the classic route on a Lua-parser Hyprland, which answered "keyword
+  // can't work with non-legacy parsers" on *stdout* with exit status 0 -- so
+  // the rules were dropped, nothing was logged, and every popped-out note
+  // tiled.
+  //
+  // Instead the Lua route is tried first and the compositor's own answer
+  // decides: anything but `ok` means the classic route, which is then run
+  // instead. That needs no readiness signal and does not depend on the exact
+  // wording of the refusal.
+  property bool luaConfig: true
+
+  // hyprctl answers "ok", and only "ok", when it accepts a command -- once per
+  // command for a batch -- and prints prose when it does not. It exits 0 either
+  // way, so the text is the only thing worth reading.
+  function ruleOk(text) {
+    var lines = String(text).split("\n")
+    var accepted = false
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim()
+      if (!line.length) continue
+      if (line !== "ok") return false
+      accepted = true
+    }
+    return accepted
+  }
 
   // Classic parser equivalents of the same rules.
   readonly property var legacyBaseRules: [
@@ -133,7 +162,13 @@ ShellRoot {
     + ', no_blur = true, no_shadow = true, no_dim = true'
     + ', border_size = 0, rounding = 0, opacity = "1 1" })'
 
-  Process { id: ruleProc }
+  // The placement rule for a single note as it is popped out. Its result is
+  // checked for the same reason the others are: a rule Hyprland refuses costs
+  // nothing at the time and shows up much later as a note in the wrong place.
+  Process {
+    id: ruleProc
+    stdout: StdioCollector { onStreamFinished: shell.checkRuleResult("placement", text) }
+  }
 
   // The base rule goes in on its own, deliberately.
   //
@@ -144,13 +179,28 @@ ShellRoot {
   // rule can do is leave one note in the wrong place.
   Process {
     id: baseRuleProc
-    stdout: StdioCollector { onStreamFinished: shell.checkRuleResult("base", text) }
+    // No warning here: a refusal is how the classic parser is recognised, not a
+    // failure. `streamFinished` lands before `exited`, so the answer is already
+    // in by the time the next step is picked.
+    stdout: StdioCollector { onStreamFinished: shell.luaConfig = shell.ruleOk(text) }
     onExited: {
-      // Placement is best-effort; the notes are usable without it, so they are
-      // not held back waiting for it.
-      shell.applyPlacementRules()
-      shell.rulesReady = true
+      if (shell.luaConfig) { shell.finishStartupRules(); return }
+      legacyBaseProc.command = shell.legacyBaseCommand()
+      legacyBaseProc.running = true
     }
+  }
+
+  Process {
+    id: legacyBaseProc
+    stdout: StdioCollector { onStreamFinished: shell.checkRuleResult("base", text) }
+    onExited: shell.finishStartupRules()
+  }
+
+  function finishStartupRules() {
+    // Placement is best-effort; the notes are usable without it, so they are
+    // not held back waiting for it.
+    shell.applyPlacementRules()
+    shell.rulesReady = true
   }
 
   Process {
@@ -159,7 +209,7 @@ ShellRoot {
   }
 
   function checkRuleResult(which, text) {
-    if (String(text).indexOf("error") >= 0)
+    if (!shell.ruleOk(text))
       console.warn("ledge: Hyprland rejected the " + which + " window rules, "
                    + "popped-out notes will not behave correctly:", text)
   }
@@ -197,9 +247,8 @@ ShellRoot {
   function applyStartupRules() {
     if (shell.rulesRequested || !Store.floatsReady) return
     shell.rulesRequested = true
-    baseRuleProc.command = shell.luaConfig
-      ? ["hyprctl", "eval", shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
-      : shell.legacyBaseCommand()
+    baseRuleProc.command = ["hyprctl", "eval",
+                            shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
     baseRuleProc.running = true
   }
 

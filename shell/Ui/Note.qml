@@ -644,7 +644,17 @@ Item {
           function onNoteIdChanged() { editor.loadFrom(note.noteId) }
           function onBodyChanged() {
             if (editor.boundId !== note.noteId) { editor.loadFrom(note.noteId); return }
-            if (!editor.activeFocus && editor.text !== note.body) editor.loadFrom(note.noteId)
+            if (editor.text === note.body) return
+
+            // Typing sets the body itself, so reaching here with a different
+            // body means something outside Ledge rewrote the file. With the
+            // caret in the text, the user's version wins -- but the other one
+            // is kept rather than quietly overwritten on the next keystroke.
+            if (editor.activeFocus) {
+              Store.keepConflictCopy(note.noteId, note.body)
+              return
+            }
+            editor.loadFrom(note.noteId)
           }
         }
 

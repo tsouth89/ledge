@@ -28,6 +28,7 @@ QtObject {
   readonly property string trashDir: dataDir + "/trash"
   readonly property string orderPath: dataDir + "/order"
   readonly property string seededPath: dataDir + "/.seeded"
+  readonly property string conflictDir: dataDir + "/conflicts"
   readonly property string floatsPath: dataDir + "/floats.json"
 
   readonly property ListModel notes: ListModel {}
@@ -616,6 +617,38 @@ QtObject {
     })
     recount()
   }
+
+  // ---------------------------------------------------------- conflicts
+  //
+  // An open editor deliberately ignores changes made to its file by anything
+  // else, because yanking text out from under a caret mid-sentence is its own
+  // kind of awful. The cost is that the next keystroke would overwrite whatever
+  // the other editor wrote. Rather than pick a side, the version Ledge is about
+  // to overwrite is kept.
+
+  property var conflictSeen: ({})
+
+  signal conflictKept(string id, string path)
+
+  function keepConflictCopy(id, content) {
+    var body = String(content || "")
+    if (!body.length) return
+    // The same external content can arrive repeatedly; keep it once.
+    if (root.conflictSeen[id] === body) return
+    var seen = root.conflictSeen
+    seen[id] = body
+    root.conflictSeen = seen
+
+    var path = root.conflictDir + "/" + id + "-" + Date.now() + ".md"
+    conflictProc.stdinEnabled = true
+    conflictProc.exec(["bash", "-c",
+      'mkdir -p "$(dirname "$1")" && cat > "$1"', "_", path])
+    conflictProc.write(body)
+    conflictProc.stdinEnabled = false
+    root.conflictKept(id, path)
+  }
+
+  property Process conflictProc: Process { stdinEnabled: true }
 
   // -------------------------------------------------- attachments
   //

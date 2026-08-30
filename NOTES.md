@@ -217,6 +217,15 @@ is exactly where a stray click lands, and it cost four real notes during
 development before anyone noticed they had gone. If a control destroys
 something, it arms first, wherever it lives.
 
+**Conflict copies are a belt-and-braces guard that has never been seen to fire.**
+The reasoning was: an open editor ignores changes made to its file by anything
+else, so the next keystroke would overwrite them. In practice, an external write
+to a note that was open *and* had keyboard focus reloaded cleanly and the
+outside version won, across repeated attempts. So outside edits appear not to be
+lost, and `Store.keepConflictCopy` guards a case that could not be reproduced.
+It only ever writes an extra file, so it stays -- but do not describe it as a
+tested feature.
+
 **Never assign to a TextEdit's `text` to make a small edit.** Assigning rebuilds
 the document and throws the undo history away, so toggling one checkbox used to
 cost every edit made to that note. `remove()` + `insert()` keeps it.

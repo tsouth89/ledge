@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import QtQuick.Window
 import Quickshell.Hyprland
 import qs.Core
 
@@ -76,7 +77,11 @@ FloatingWindow {
 
       floating: true
       open: true
-      editing: false
+      // Focused only while this window is the active one. Tying it to window
+      // activation rather than to "is floating" is what stops a note parked on
+      // another workspace from swallowing keystrokes, while still letting you
+      // click a note and type into it straight away.
+      editing: Window.active
 
       onFloatMoveRequested: win.startSystemMove()
       onFloatResizeRequested: function (edges) { win.startSystemResize(edges) }

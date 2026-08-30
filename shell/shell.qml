@@ -262,6 +262,18 @@ ShellRoot {
     }
   }
 
+  Connections {
+    target: Store
+    function onConflictKept(id, path) {
+      var proc = notifier.createObject(shell, { noteId: id })
+      if (!proc) return
+      proc.command = ["notify-send", "--app-name=Ledge", "--icon=ledge",
+                      "Note edited in two places",
+                      "Kept the other version at " + path]
+      proc.running = true
+    }
+  }
+
   // ---------------------------------------------------------- reminders
   //
   // A reminder is a timestamp in a note's frontmatter. Nothing schedules a

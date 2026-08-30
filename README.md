@@ -225,7 +225,9 @@ vet appointment
 
 Grep them, commit them, sync them, point Obsidian at them, edit them in Neovim
 while Ledge is running: the strip watches the directory and picks up outside
-edits live.
+edits live, including into a note that is open at the time. If an edit ever does
+collide with one you are typing, the version Ledge would have replaced is kept
+under `conflicts/` rather than dropped.
 
 Neither ordering nor float position lives in the frontmatter. Dragging a note to a new spot
 rewrites one small `order` file rather than touching every note below it, which

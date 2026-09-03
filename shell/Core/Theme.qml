@@ -19,7 +19,8 @@ QtObject {
   id: root
 
   readonly property string home: Quickshell.env("HOME")
-  readonly property string themePath: home + "/.local/state/omarchy/current/theme"
+  readonly property string statePath: home + "/.local/state/omarchy/current"
+  readonly property string themePath: statePath + "/theme"
 
   property string name: "unknown"
   property string mode: "dark"
@@ -217,7 +218,7 @@ QtObject {
   // ------------------------------------------------------------- files
 
   property FileView nameFile: FileView {
-    path: root.themePath + "/theme.name"
+    path: root.statePath + "/theme.name"
     watchChanges: true
     printErrors: false
     onLoaded: {

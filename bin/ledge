@@ -44,6 +44,7 @@ usage() {
 ledge - sticky notes that live on the edge of the screen
 
   ledge start | stop | restart | status
+  ledge stats             internal health counters as JSON
   ledge new [text]        create a note as a sticky on the desktop; bare
                           `ledge new` toggles, so pressing the same key again
                           puts it away
@@ -99,6 +100,7 @@ case "$cmd" in
     start ;;
   status)
     if running; then echo "running  (shell: $SHELL_DIR)"; else echo "stopped  (shell: $SHELL_DIR)"; fi ;;
+  stats)   ipc stats ;;
   # Bare `ledge new` toggles: it opens a blank note, or closes the open one.
   # Given text it always creates, so scripts and pipes behave predictably.
   new)

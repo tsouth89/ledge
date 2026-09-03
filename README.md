@@ -24,8 +24,8 @@ not there.
 
 ## Install
 
-The AUR is not accepting new package submissions at the moment, so build it
-yourself. The PKGBUILD is in the repository and fetches the tagged release:
+An AUR package is planned. Until it is published, build Ledge yourself. The
+PKGBUILD is in the repository and fetches the tagged release:
 
 ```bash
 git clone https://github.com/tsouth89/ledge
@@ -185,14 +185,18 @@ exactly what it sets and why.
 
 ```
 ledge start | stop | restart | status
-ledge new [text]        create a note and open it (reads stdin)
+ledge stats             internal health counters as JSON
+ledge new [text]        create a note as a sticky on the desktop (reads stdin)
 ledge add [text]        append to the most recent note (reads stdin)
 ledge list              every note as JSON
 ledge all               open the All Notes window
+ledge attach <id>       attach the image on the clipboard to a note
+ledge remind <id> <when>  set or clear a reminder
 ledge export [path]     write every note to one markdown file
 ledge trash             list deleted notes as JSON
 ledge restore <file>    bring a deleted note back
 ledge open <id>         open one note for editing
+ledge copy <id>         copy a note's text to the clipboard
 ledge rm <id>           move a note to the trash
 ledge move <id> <n>     move a note to position n (0 is first)
 ledge pop <id>          detach a note to float on the desktop
@@ -200,6 +204,10 @@ ledge place <id> <x> <y>  move a floating note (global screen coordinates)
 ledge dock <id>         send a floating note back to the strip
 ledge peek              fan the strip open
 ledge close             collapse it
+ledge log               tail the running instance's log
+ledge dir               print the data directory
+ledge install-desktop   add Ledge to your launcher when running from a clone
+ledge version           version and environment for bug reports
 ```
 
 So this works:

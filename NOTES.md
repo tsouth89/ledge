@@ -29,7 +29,7 @@ repairing after being used as test subjects, and one lost its archived flag.
 **Before changing anything**
 
 ```bash
-./test/smoke.sh          # 44 assertions, needs a Wayland session
+./test/smoke.sh          # 45 assertions, needs a Wayland session
 ledge restart            # reload after editing QML
 ledge stats              # notes, live, floating, reaped, ready
 ```
@@ -382,7 +382,10 @@ popped note follows you between workspaces.
 3. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
-4. Publish: tag v0.1.0, AUR submission, marketplace listing, competition entry.
+4. **Rename and release.** Pick the permanent note-focused name, update the
+   package and desktop integration in one pass, then publish the 13 commits
+   after v0.1.0 as the next release. Submit the renamed package to the AUR and
+   update any marketplace or competition entry after the release is live.
 
 ### Omarchy fit, checked rather than assumed
 

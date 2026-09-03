@@ -52,6 +52,18 @@ count() { ipc list | python3 -c 'import sys,json;print(len(json.load(sys.stdin))
 titles() { ipc list | python3 -c 'import sys,json;print(",".join(n["title"] for n in json.load(sys.stdin)))'; }
 settle() { sleep 0.7; }
 
+# Theme swaps replace the current theme directory. Omarchy's stable trigger is
+# the sibling theme.name file, so checking the reported name guards the exact
+# path contract that keeps live theme reloads working.
+theme_name_file="$HOME/.local/state/omarchy/current/theme.name"
+if [[ -s $theme_name_file ]]; then
+  expected_theme=$(<"$theme_name_file")
+  actual_theme=$(ipc theme | python3 -c 'import sys,json;print(json.load(sys.stdin)["name"])')
+  is "reads Omarchy's current theme name" "$actual_theme" "$expected_theme"
+else
+  echo "  skip current theme name (Omarchy theme state is unavailable)"
+fi
+
 # --- a clean instance starts empty -------------------------------------------
 is "starts with no notes" "$(count)" "0"
 

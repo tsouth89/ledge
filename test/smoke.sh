@@ -32,8 +32,10 @@ echo "  data: $DATA"
 # same marker the app itself writes rather than a test-only switch. Seeding gets
 # its own instance further down.
 touch "$DATA/.seeded"
+printf '{"floatFollows": true}\n' > "$DATA/config.json"
 
-NOTESTRIP_DATA_DIR="$DATA" qs --path "$SHELL_DIR" >"$LOG" 2>&1 &
+NOTESTRIP_DATA_DIR="$DATA" NOTESTRIP_CONFIG="$DATA/config.json" \
+  qs --path "$SHELL_DIR" >"$LOG" 2>&1 &
 PID=$!
 
 # Wait for the IPC surface rather than sleeping a guessed amount.
@@ -170,6 +172,34 @@ is "popped note floats in the compositor" "$(hyprctl -j clients 2>/dev/null | py
 import sys,json
 c = next((c for c in json.load(sys.stdin) if c['title'] == 'notestrip-note:$A'), None)
 print('no window' if c is None else 'floating' if c['floating'] else 'tiled')" 2>/dev/null)" "floating"
+is "a note can stay on this workspace" "$(ipc follow "$A" off)" "off"
+settle
+is "the per-note workspace choice is saved" "$(grep -c '^floatFollows: false$' "$DATA/notes/$A.md")" "1"
+is "the live note is unpinned" "$(hyprctl -j clients 2>/dev/null | python3 -c "
+import sys,json
+c = next((c for c in json.load(sys.stdin) if c['title'] == 'notestrip-note:$A'), None)
+print('no window' if c is None else str(c['pinned']).lower())" 2>/dev/null)" "false"
+kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null
+NOTESTRIP_DATA_DIR="$DATA" NOTESTRIP_CONFIG="$DATA/config.json" \
+  qs --path "$SHELL_DIR" >>"$LOG" 2>&1 &
+PID=$!
+for _ in $(seq 1 60); do
+  qs ipc --pid "$PID" call notestrip ping >/dev/null 2>&1 && break
+  sleep 0.2
+done
+sleep 1.2
+is "the workspace choice survives a restart" "$(hyprctl -j clients 2>/dev/null | python3 -c "
+import sys,json
+c = next((c for c in json.load(sys.stdin) if c['title'] == 'notestrip-note:$A'), None)
+print('no window' if c is None else str(c['pinned']).lower())" 2>/dev/null)" "false"
+is "a note can follow every workspace" "$(ipc follow "$A" on)" "on"
+settle
+is "the live note is pinned" "$(hyprctl -j clients 2>/dev/null | python3 -c "
+import sys,json
+c = next((c for c in json.load(sys.stdin) if c['title'] == 'notestrip-note:$A'), None)
+print('no window' if c is None else str(c['pinned']).lower())" 2>/dev/null)" "true"
+ipc follow "$A" default >/dev/null; settle
+is "the per-note choice can return to the default" "$(grep -c '^floatFollows:' "$DATA/notes/$A.md")" "0"
 ipc dock "$A" >/dev/null; sleep 0.8
 is "docked note is no longer floating" "$(python3 -c "
 import json;d=json.load(open('$DATA/floats.json'));print(len(d))" 2>/dev/null)" "0"
@@ -240,7 +270,8 @@ fi
 # A separate instance against a genuinely untouched directory, since the suite
 # above deliberately starts from a seeded marker.
 FRESH=$(mktemp -d /tmp/notestrip-fresh.XXXXXX)
-NOTESTRIP_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >"$FRESH/log" 2>&1 &
+NOTESTRIP_DATA_DIR="$FRESH" NOTESTRIP_CONFIG="$DATA/config.json" \
+  qs --path "$SHELL_DIR" >"$FRESH/log" 2>&1 &
 FPID=$!
 for _ in $(seq 1 60); do
   qs ipc --pid "$FPID" call notestrip ping >/dev/null 2>&1 && break
@@ -260,7 +291,8 @@ for n in json.load(sys.stdin): print(n["id"])'); do
 done
 sleep 1
 kill "$FPID" 2>/dev/null; wait "$FPID" 2>/dev/null
-NOTESTRIP_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >>"$FRESH/log" 2>&1 &
+NOTESTRIP_DATA_DIR="$FRESH" NOTESTRIP_CONFIG="$DATA/config.json" \
+  qs --path "$SHELL_DIR" >>"$FRESH/log" 2>&1 &
 FPID=$!
 for _ in $(seq 1 60); do
   qs ipc --pid "$FPID" call notestrip ping >/dev/null 2>&1 && break

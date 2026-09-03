@@ -276,6 +276,8 @@ QtObject {
 
   signal noteAdded(string id)
   signal noteRemoved(string id)
+  signal noteLoaded(string id)
+  signal floatFollowChanged(string id, bool follows)
 
   // ------------------------------------------------------------- lookup
 
@@ -355,6 +357,8 @@ QtObject {
     if (n.title && n.title.length) lines.push("title: " + JSON.stringify(n.title))
     if (n.archived) lines.push("archived: true")
     if (n.pinned) lines.push("pinned: true")
+    if (n.floatFollows === 0) lines.push("floatFollows: false")
+    else if (n.floatFollows === 1) lines.push("floatFollows: true")
     if (n.styled === false) lines.push("styled: false")
     if (n.reminder && n.reminder.length) lines.push("reminder: " + n.reminder)
     if (n.created && n.created.length) lines.push("created: " + n.created)
@@ -385,6 +389,7 @@ QtObject {
       body: body || "",
       archived: false,
       pinned: false,
+      floatFollows: -1,
       styled: true,
       reminder: "",
       created: new Date().toISOString(),
@@ -477,6 +482,41 @@ QtObject {
     if (i < 0) return
     notes.setProperty(i, "pinned", !notes.get(i).pinned)
     save(id)
+  }
+
+  // A missing override inherits the global setting. Once the user toggles the
+  // control on a note, that note keeps its own choice even if the default is
+  // changed later.
+  function effectiveFloatFollows(id) {
+    var n = get(id)
+    if (!n || n.floatFollows === undefined || n.floatFollows < 0)
+      return Config.floatFollows
+    return n.floatFollows === 1
+  }
+
+  function setFloatFollows(id, follows) {
+    var i = indexOfId(id)
+    if (i < 0) return false
+    var next = follows ? 1 : 0
+    if (notes.get(i).floatFollows === next) return follows
+    notes.setProperty(i, "floatFollows", next)
+    save(id)
+    root.floatFollowChanged(id, follows)
+    return follows
+  }
+
+  function resetFloatFollows(id) {
+    var i = indexOfId(id)
+    if (i < 0) return false
+    notes.setProperty(i, "floatFollows", -1)
+    save(id)
+    var follows = Config.floatFollows
+    root.floatFollowChanged(id, follows)
+    return follows
+  }
+
+  function toggleFloatFollows(id) {
+    return setFloatFollows(id, !effectiveFloatFollows(id))
   }
 
   // Delete moves the file to trash/ rather than unlinking it. Accidental
@@ -597,6 +637,7 @@ QtObject {
         body: "",
         archived: false,
         pinned: false,
+        floatFollows: -1,
         styled: true,
         reminder: "",
         created: "",
@@ -636,6 +677,8 @@ QtObject {
       body: parsed.body,
       archived: truthy(m["archived"]),
       pinned: truthy(m["pinned"]),
+      floatFollows: m["floatFollows"] === undefined ? -1
+                    : (truthy(m["floatFollows"]) ? 1 : 0),
       styled: m["styled"] === undefined ? true : truthy(m["styled"]),
       reminder: m["reminder"] || "",
       created: m["created"] || "",
@@ -643,6 +686,7 @@ QtObject {
       pending: false
     })
     recount()
+    root.noteLoaded(id)
   }
 
   // ---------------------------------------------------------- conflicts

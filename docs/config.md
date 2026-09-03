@@ -12,7 +12,11 @@ the values below are the defaults.
 | `layer` | `"top"` | `"top"` sits under fullscreen windows. `"overlay"` draws over them, including over games |
 | `topMargin` | `0` | keep the strip clear of something at the top |
 | `bottomMargin` | `0` | |
-| `floatFollows` | `true` | a popped-out note follows you between workspaces. Turn off to leave each note on the workspace you put it on |
+| `floatFollows` | `true` | default for whether a popped-out note follows you between workspaces |
+
+Per-note `floatFollows: true` or `floatFollows: false` frontmatter overrides the
+global workspace-following default. The globe control on a popped-out note sets
+this value. `notestrip follow <id> default` removes the override.
 
 ## The strip
 

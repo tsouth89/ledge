@@ -87,11 +87,9 @@ QtObject {
   // Overlay draws over them, including over games.
   readonly property string layer: str("layer", "top")
 
-  // Whether a popped-out note follows you between workspaces. On by default,
-  // because that is what makes a sticky note a sticky note. Turn it off if you
-  // keep a note per project and want it to stay on the workspace you left it
-  // on. Applies to every note; a per-note choice would need its own frontmatter
-  // field, and is only worth it if this switch turns out not to be enough.
+  // Default for whether a popped-out note follows you between workspaces. A
+  // note can override it with `floatFollows` frontmatter through its globe
+  // control or the CLI.
   readonly property bool floatFollows: bool("floatFollows", true)
 
   readonly property int topMargin: num("topMargin", 0)

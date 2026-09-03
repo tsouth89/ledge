@@ -69,10 +69,12 @@ ShellRoot {
     if (!st) return ""
     if (![st.x, st.y, st.w, st.h].every(isFinite)) return ""
     var pad = Config.floatShadowPad
+    var follows = Store.effectiveFloatFollows(id)
     var monitor = st.monitor && st.monitor.length
                 ? ', monitor = "' + st.monitor + '"' : ""
     return 'hl.window_rule({ match = { title = "' + shell.noteTitleRe(id) + '" }'
          + monitor
+         + ', pin = ' + (follows ? "true" : "false")
          + ', no_initial_focus = ' + (focus ? "false" : "true")
          + ', move = { ' + Math.round(st.x - pad) + ', ' + Math.round(st.y - pad) + ' }'
          + ', size = { ' + Math.round(st.w + pad * 2) + ', ' + Math.round(st.h + pad * 2) + ' } })'
@@ -123,12 +125,8 @@ ShellRoot {
 
   // Classic parser equivalents of the same rules.
   readonly property var legacyBaseRules: {
-    var rules = ["float", "noinitialfocus", "noblur", "noshadow", "nodim",
-                 "bordersize 0", "rounding 0"]
-    // The classic parser has no way to say "not pinned", so this one is added
-    // rather than set either way.
-    if (Config.floatFollows) rules.splice(1, 0, "pin")
-    return rules
+    return ["float", "noinitialfocus", "noblur", "noshadow", "nodim",
+            "bordersize 0", "rounding 0"]
   }
 
   function legacyKeyword(rule, match) {
@@ -153,6 +151,7 @@ ShellRoot {
       var pad = Config.floatShadowPad
       if (e.st.monitor && e.st.monitor.length)
         parts.push(legacyKeyword("monitor " + e.st.monitor, match))
+      if (e.follows) parts.push(legacyKeyword("pin", match))
       parts.push(legacyKeyword("move " + Math.round(e.st.x - pad)
                                + " " + Math.round(e.st.y - pad), match))
       parts.push(legacyKeyword("size " + Math.round(e.st.w + pad * 2)
@@ -176,7 +175,7 @@ ShellRoot {
   // it would leave every note greyed out all day.
   readonly property string baseRuleLua:
     'hl.window_rule({ match = { title = "^(notestrip-note:.*)$" }'
-    + ', float = true, pin = ' + (Config.floatFollows ? "true" : "false")
+    + ', float = true'
     + ', no_initial_focus = true'
     + ', no_blur = true, no_shadow = true, no_dim = true'
     + ', border_size = 0, rounding = 0 })'
@@ -249,7 +248,7 @@ ShellRoot {
     for (var lid in Store.floats) {
       var st = Store.floats[lid]
       if (![st.x, st.y, st.w, st.h].every(isFinite)) continue
-      entries.push({ id: lid, st: st })
+      entries.push({ id: lid, st: st, follows: Store.effectiveFloatFollows(lid) })
     }
     var cmd = shell.legacyPlacementCommand(entries)
     if (!cmd.length) return
@@ -264,7 +263,13 @@ ShellRoot {
   // would never fire and no rules would ever be applied -- which shows up as
   // popped-out notes being tiled by the compositor.
   function applyStartupRules() {
-    if (shell.rulesRequested || !Store.floatsReady) return
+    if (shell.rulesRequested || !Store.floatsReady || !Store.ready) return
+    // The float table and note files load independently. Wait until every
+    // floating note has its frontmatter before choosing its pin value.
+    for (var id in Store.floats) {
+      var n = Store.get(id)
+      if (!n || !n.loaded) return
+    }
     shell.rulesRequested = true
     baseRuleProc.command = ["hyprctl", "eval",
                             shell.evalChunk([shell.baseRuleLua, shell.libraryRuleLua])]
@@ -276,6 +281,65 @@ ShellRoot {
   Connections {
     target: Store
     function onFloatsReadyChanged() { shell.applyStartupRules() }
+    function onFloatIdsChanged() { shell.applyStartupRules() }
+    function onReadyChanged() { shell.applyStartupRules() }
+    function onNoteLoaded() { shell.applyStartupRules() }
+    function onFloatFollowChanged(id, follows) {
+      shell.applyLiveFollows([{ id: id, follows: follows }])
+    }
+  }
+
+  // Pin is a static window rule, so changing a note after its window exists
+  // needs a dispatcher as well as updated frontmatter for the next launch.
+  // One short-lived process per change avoids dropping a fast second click.
+  Component {
+    id: liveFollowRunner
+    Process {
+      stdout: StdioCollector {
+        onStreamFinished: shell.checkRuleResult("workspace follow", text)
+      }
+      onExited: destroy()
+    }
+  }
+
+  function applyLiveFollows(entries) {
+    if (!shell.rulesReady || !entries || !entries.length) return
+    var live = []
+    for (var i = 0; i < entries.length; i++)
+      if (Store.isFloating(entries[i].id)) live.push(entries[i])
+    if (!live.length) return
+
+    var proc = liveFollowRunner.createObject(shell)
+    if (!proc) return
+    if (shell.luaConfig) {
+      var statements = []
+      for (var j = 0; j < live.length; j++) {
+        var e = live[j]
+        statements.push('hl.dispatch(hl.dsp.window.pin({ window = "title:'
+                        + shell.noteTitleRe(e.id) + '", action = "'
+                        + (e.follows ? "enable" : "disable") + '" }))')
+      }
+      proc.command = ["hyprctl", "eval", shell.evalChunk(statements)]
+    } else {
+      var parts = []
+      for (var k = 0; k < live.length; k++)
+        parts.push("dispatch pin title:" + shell.noteTitleRe(live[k].id))
+      proc.command = ["hyprctl", "--batch", parts.join(" ; ")]
+    }
+    proc.running = true
+  }
+
+  Connections {
+    target: Config
+    function onFloatFollowsChanged() {
+      var inherited = []
+      for (var id in Store.floats) {
+        var n = Store.get(id)
+        if (n && (n.floatFollows === undefined || n.floatFollows < 0))
+          inherited.push({ id: id, follows: Config.floatFollows })
+      }
+      shell.applyLiveFollows(inherited)
+    }
   }
 
   // Popping out: place first, then float, so the window never flashes at
@@ -302,7 +366,9 @@ ShellRoot {
     }
     ruleProc.command = shell.luaConfig
       ? ["hyprctl", "eval", shell.evalChunk([shell.placementLua(id, st, focus)])]
-      : shell.legacyPlacementCommand([{ id: id, st: st }])
+      : shell.legacyPlacementCommand([{
+          id: id, st: st, follows: Store.effectiveFloatFollows(id)
+        }])
     ruleProc.running = true
   }
 
@@ -572,6 +638,22 @@ ShellRoot {
       return "ok"
     }
 
+    function follow(id: string, mode: string): string {
+      if (Store.indexOfId(id) < 0) return "unknown id"
+      var choice = String(mode || "toggle").toLowerCase()
+      var follows
+      if (choice === "on" || choice === "true" || choice === "yes")
+        follows = Store.setFloatFollows(id, true)
+      else if (choice === "off" || choice === "false" || choice === "no")
+        follows = Store.setFloatFollows(id, false)
+      else if (choice === "default" || choice === "inherit")
+        follows = Store.resetFloatFollows(id)
+      else if (choice === "toggle")
+        follows = Store.toggleFloatFollows(id)
+      else return "mode must be on, off, default, or toggle"
+      return follows ? "on" : "off"
+    }
+
     function copy(id: string): string {
       var n = Store.get(id)
       if (!n) return "unknown id"
@@ -664,7 +746,8 @@ ShellRoot {
           color: n.color,
           title: Store.deriveTitle(n.body, n.title),
           archived: n.archived,
-          pinned: n.pinned
+          pinned: n.pinned,
+          floatFollows: Store.effectiveFloatFollows(n.noteId)
         })
       }
       return JSON.stringify(out)

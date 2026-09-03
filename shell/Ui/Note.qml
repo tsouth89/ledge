@@ -52,6 +52,7 @@ Item {
     return n ? String(n.reminder || "") : ""
   }
   readonly property bool hasReminder: reminderAt.length > 0
+  readonly property bool followsWorkspaces: Store.effectiveFloatFollows(noteId)
 
   readonly property color tint: Theme.tabColor(colorKey)
   readonly property color paperColor: Theme.cardColor(colorKey)
@@ -329,16 +330,25 @@ Item {
         visible: !actions.pickingReminder && !actions.pickingColour
 
         Repeater {
-          model: [
-            { glyph: note.floating ? "\uf2d2" : "\uf08e",
-              act: "pop",
-              tip: note.floating ? "Dock" : "Pop out" },
-            { glyph: "\uf08d", act: "pin",     tip: "Pin" },
-            { glyph: "\uf0c5", act: "copy",    tip: "Copy text" },
-            { glyph: "\uf187", act: "archive", tip: "Archive" },
-            { glyph: "\uf1f8", act: "delete",  tip: "Delete" },
-            { glyph: "\uf017", act: "remind",  tip: "Remind me" }
-          ]
+          model: {
+            var items = [
+              { glyph: note.floating ? "\uf2d2" : "\uf08e",
+                act: "pop",
+                tip: note.floating ? "Dock" : "Pop out" }
+            ]
+            if (note.floating) items.push({
+              glyph: "\uf0ac", act: "follow",
+              tip: note.followsWorkspaces ? "Every workspace" : "This workspace"
+            })
+            items.push(
+              { glyph: "\uf08d", act: "pin",     tip: "Pin" },
+              { glyph: "\uf0c5", act: "copy",    tip: "Copy text" },
+              { glyph: "\uf187", act: "archive", tip: "Archive" },
+              { glyph: "\uf1f8", act: "delete",  tip: "Delete" },
+              { glyph: "\uf017", act: "remind",  tip: "Remind me" }
+            )
+            return items
+          }
           delegate: Text {
             required property var modelData
             text: modelData.glyph
@@ -348,7 +358,9 @@ Item {
               if (modelData.act === "delete" && actions.deleteArmed) return Theme.urgent
               if (modelData.act === "remind" && note.hasReminder) return note.tint
               var lit = hit.containsMouse ? 1.0
-                        : (modelData.act === "pin" && note.pinned ? 0.85 : 0.42)
+                        : ((modelData.act === "pin" && note.pinned)
+                           || (modelData.act === "follow" && note.followsWorkspaces)
+                           ? 0.85 : 0.42)
               return Theme.withAlpha(note.ink, lit)
             }
 
@@ -371,6 +383,10 @@ Item {
                   return
                 }
                 if (modelData.act === "pin") { Store.togglePinned(note.noteId); return }
+                if (modelData.act === "follow") {
+                  Store.toggleFloatFollows(note.noteId)
+                  return
+                }
                 if (modelData.act === "copy") {
                   Store.copyText(note.body)
                   actions.hint = "Copied"

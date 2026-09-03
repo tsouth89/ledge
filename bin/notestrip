@@ -2,7 +2,7 @@
 # notestrip - edge-docked sticky notes for Hyprland
 set -euo pipefail
 
-NOTESTRIP_VERSION=0.2.1
+NOTESTRIP_VERSION=0.3.0
 
 # Keep scripts written for the 0.1 name working through the rename.
 if [[ -z ${NOTESTRIP_SHELL_DIR:-} && -n ${LEDGE_SHELL_DIR:-} ]]; then
@@ -107,6 +107,7 @@ notestrip - sticky notes that live on the edge of the screen
   notestrip rm <id>           move a note to the trash
   notestrip move <id> <n>     move a note to position n on the strip (0 is first)
   notestrip pop <id>          detach a note to float on the desktop
+  notestrip follow <id> [mode]  set workspace following: on, off, default, or toggle
   notestrip place <id> <x> <y>  move a floating note (global screen coordinates)
   notestrip dock <id>         send a floating note back to the strip
   notestrip peek              fan the strip open without opening a note
@@ -164,6 +165,7 @@ case "$cmd" in
   rm)      [[ $# -ge 1 ]] || { echo "notestrip: rm needs a note id" >&2; exit 2; }; ipc remove "$1" ;;
   copy)    [[ $# -ge 1 ]] || { echo "notestrip: copy needs a note id" >&2; exit 2; }; ipc copy "$1" ;;
   pop)     [[ $# -ge 1 ]] || { echo "notestrip: pop needs a note id" >&2; exit 2; }; ipc pop "$1" ;;
+  follow)  [[ $# -ge 1 ]] || { echo "notestrip: follow needs a note id" >&2; exit 2; }; ipc follow "$1" "${2:-toggle}" ;;
   place)   [[ $# -ge 3 ]] || { echo "notestrip: place needs a note id, x and y" >&2; exit 2; }; ipc place "$1" "$2" "$3" ;;
   dock)    [[ $# -ge 1 ]] || { echo "notestrip: dock needs a note id" >&2; exit 2; }; ipc dock "$1" ;;
   move)    [[ $# -ge 2 ]] || { echo "notestrip: move needs a note id and a position" >&2; exit 2; }; ipc move "$1" "$2" ;;

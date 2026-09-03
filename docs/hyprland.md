@@ -36,7 +36,6 @@ itself.
 hl.window_rule({
   match = { title = "^(notestrip-note:.*)$" },
   float = true,
-  pin = true,
   no_initial_focus = true,
   no_blur = true,
   no_shadow = true,
@@ -46,8 +45,6 @@ hl.window_rule({
 })
 ```
 
-`pin` is what makes a sticky note behave like one: it follows you between
-workspaces instead of being stranded on the one you popped it out from.
 `no_initial_focus` stops a note reappearing mid-sentence and eating the rest of
 it. Border, rounding and shadow are all turned off because NoteStrip draws its own.
 
@@ -70,11 +67,17 @@ Placement is a second rule per note, carrying the position and size from
 hl.window_rule({
   match = { title = "^(notestrip-note:<id>)$" },
   monitor = "<output name>",
+  pin = true,               -- false when this note stays on one workspace
   no_initial_focus = true,   -- false for a note just created by SUPER + N
   move = { x, y },
   size = { w, h },
 })
 ```
+
+The global `floatFollows` setting supplies the default `pin` value. A note's
+globe control writes its own `floatFollows` frontmatter and updates the live
+window with Hyprland's pin dispatcher, so changing it does not require a
+restart.
 
 Coordinates are relative to the output the rule names, which is why the rule
 names one. `floats.json` records the output plus coordinates relative to that
@@ -89,7 +92,7 @@ until the note walks off the screen.
 
 The base rule and the placement rules are applied as **separate** `eval` calls.
 A malformed chunk is rejected in full, so putting them together would mean one
-bad coordinate silently taking `float` and `pin` with it and every note tiling.
+bad coordinate silently taking `float` with it and every note tiling.
 Kept apart, the worst a bad placement rule can do is leave one note in the wrong
 place.
 

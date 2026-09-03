@@ -13,7 +13,7 @@ is clean.
 |---|---|
 | source | `~/Projects/notestrip` (this repo) |
 | remote | `github.com/tsouth89/notestrip`, public, `main` |
-| release | v0.2.1, with a built package attached |
+| release | v0.3.0, with a built package attached |
 | off-disk backup | `/data/backups/notestrip-*.bundle` (`git clone` restores from it) |
 | notes and data | `~/.local/share/notestrip/` |
 | settings | `~/.config/notestrip/config.json` (absent = defaults) |
@@ -374,17 +374,14 @@ for the 0.1 data and config paths, retained the old command as an alias, fixed
 the Omarchy theme reload trigger, exposed `notestrip stats`, and updated the
 release workflow and documentation.
 
-1. **Per-note control of workspace following.** `floatFollows` is currently one
-   switch for every note. If keeping a project note on one workspace while the
-   shopping list follows you everywhere turns out to matter, this wants a
-   frontmatter field applied as a per-note rule. The per-note rule pipeline
-   already exists, so it is mostly plumbing. Deliberately not built on
-   speculation: the global switch may well be enough.
-2. **Markup coverage.** Tables and fenced code blocks are deliberately absent:
+Per-note workspace following is now implemented through `floatFollows`
+frontmatter, the globe control on a popped-out note, and `notestrip follow`.
+
+1. **Markup coverage.** Tables and fenced code blocks are deliberately absent:
    both need block layout, and the same-width invariant forbids it. The invariant
    is what keeps the caret sitting on the right glyph, so this stays out until
    there is a design that does not break it. Leave unless it actually bites.
-3. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
+2. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
 

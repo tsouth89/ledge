@@ -24,8 +24,8 @@ not there.
 
 ## Install
 
-An AUR package is planned. Until it is published, build NoteStrip yourself. The
-PKGBUILD is in the repository and fetches the tagged release:
+Build NoteStrip with the included PKGBUILD. A ready-made Arch package is also
+attached to each GitHub release:
 
 ```bash
 git clone https://github.com/tsouth89/notestrip
@@ -182,9 +182,10 @@ same way a title bar does it, so crossing outputs and spanning the seam behave
 exactly like every other window on your desktop. Position and size persist in
 `floats.json`.
 
-Popped-out notes are pinned, borderless, and do not take focus when they appear,
-so one parked on your desktop follows you between workspaces without ever
-catching a keystroke meant for something else. NoteStrip applies the Hyprland rules
+Popped-out notes are borderless and do not take focus when they appear. By
+default they follow you between workspaces without catching a keystroke meant
+for something else. The globe control switches an individual note between
+every workspace and its current workspace. NoteStrip applies the Hyprland rules
 for this itself; see [docs/hyprland.md](docs/hyprland.md) if you want to know
 exactly what it sets and why.
 
@@ -207,6 +208,7 @@ notestrip copy <id>         copy a note's text to the clipboard
 notestrip rm <id>           move a note to the trash
 notestrip move <id> <n>     move a note to position n (0 is first)
 notestrip pop <id>          detach a note to float on the desktop
+notestrip follow <id> [mode]  set workspace following: on, off, default, or toggle
 notestrip place <id> <x> <y>  move a floating note (global screen coordinates)
 notestrip dock <id>         send a floating note back to the strip
 notestrip peek              fan the strip open

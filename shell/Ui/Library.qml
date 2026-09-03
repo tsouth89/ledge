@@ -11,7 +11,7 @@ import qs.Core
 FloatingWindow {
   id: win
 
-  title: "ledge-library"
+  title: "notestrip-library"
   color: Theme.background
 
   implicitWidth: 620
@@ -436,7 +436,7 @@ FloatingWindow {
   }
 
   function exportAll() {
-    var path = Store.home + "/ledge-notes.md"
+    var path = Store.home + "/notestrip-notes.md"
     var count = Store.exportAll(path, true)
     status.text = count + " notes exported to " + path
     clearStatus.restart()

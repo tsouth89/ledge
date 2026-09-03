@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Smoke test for Ledge.
+# Smoke test for NoteStrip.
 #
-# Runs a second Ledge instance against a throwaway data directory and drives it
+# Runs a second NoteStrip instance against a throwaway data directory and drives it
 # over IPC, asserting on what actually lands on disk. It never touches your real
 # notes. The strip will briefly appear on screen while it runs; that is the
 # point, since the thing being tested is a real shell and not a mock.
 set -uo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-SHELL_DIR=${LEDGE_SHELL_DIR:-$HERE/../shell}
-DATA=$(mktemp -d /tmp/ledge-smoke.XXXXXX)
+SHELL_DIR=${NOTESTRIP_SHELL_DIR:-$HERE/../shell}
+DATA=$(mktemp -d /tmp/notestrip-smoke.XXXXXX)
 LOG="$DATA/shell.log"
 
 pass=0; fail=0
@@ -25,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "ledge smoke test"
+echo "notestrip smoke test"
 echo "  data: $DATA"
 
 # Suppress the first-run welcome note for the main body of the suite, using the
@@ -33,21 +33,21 @@ echo "  data: $DATA"
 # its own instance further down.
 touch "$DATA/.seeded"
 
-LEDGE_DATA_DIR="$DATA" qs --path "$SHELL_DIR" >"$LOG" 2>&1 &
+NOTESTRIP_DATA_DIR="$DATA" qs --path "$SHELL_DIR" >"$LOG" 2>&1 &
 PID=$!
 
 # Wait for the IPC surface rather than sleeping a guessed amount.
 for _ in $(seq 1 60); do
-  qs ipc --pid "$PID" call ledge ping >/dev/null 2>&1 && break
+  qs ipc --pid "$PID" call notestrip ping >/dev/null 2>&1 && break
   sleep 0.2
 done
-if ! qs ipc --pid "$PID" call ledge ping >/dev/null 2>&1; then
+if ! qs ipc --pid "$PID" call notestrip ping >/dev/null 2>&1; then
   bad "instance came up" "$(tail -5 "$LOG")"
   echo; echo "0 passed, 1 failed"; exit 1
 fi
 ok "instance came up"
 
-ipc() { qs ipc --pid "$PID" call ledge "$@" 2>/dev/null; }
+ipc() { qs ipc --pid "$PID" call notestrip "$@" 2>/dev/null; }
 count() { ipc list | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))'; }
 titles() { ipc list | python3 -c 'import sys,json;print(",".join(n["title"] for n in json.load(sys.stdin)))'; }
 settle() { sleep 0.7; }
@@ -168,7 +168,7 @@ print(sum(1 for n in json.load(sys.stdin) if n['id']=='$A'))")" "1"
 # compositor rather than trusting that the rules were sent.
 is "popped note floats in the compositor" "$(hyprctl -j clients 2>/dev/null | python3 -c "
 import sys,json
-c = next((c for c in json.load(sys.stdin) if c['title'] == 'ledge-note:$A'), None)
+c = next((c for c in json.load(sys.stdin) if c['title'] == 'notestrip-note:$A'), None)
 print('no window' if c is None else 'floating' if c['floating'] else 'tiled')" 2>/dev/null)" "floating"
 ipc dock "$A" >/dev/null; sleep 0.8
 is "docked note is no longer floating" "$(python3 -c "
@@ -184,12 +184,12 @@ import json;print(list(json.load(open('$DATA/floats.json')))[0])" 2>/dev/null)
 # Opt-in: this one takes the keyboard away from whatever you are doing, and it
 # depends on the pointer sitting still, so it has no business running by
 # default on a machine somebody is using.
-if [[ ${LEDGE_TEST_FOCUS:-0} == 1 ]]; then
+if [[ ${NOTESTRIP_TEST_FOCUS:-0} == 1 ]]; then
   is "and takes the keyboard, so it can be typed into" "$(hyprctl -j activewindow 2>/dev/null | python3 -c "
 import sys,json
-print(json.load(sys.stdin).get('title'))" 2>/dev/null)" "ledge-note:$NEWID"
+print(json.load(sys.stdin).get('title'))" 2>/dev/null)" "notestrip-note:$NEWID"
 else
-  echo "  skip new note takes the keyboard (set LEDGE_TEST_FOCUS=1; it steals focus)"
+  echo "  skip new note takes the keyboard (set NOTESTRIP_TEST_FOCUS=1; it steals focus)"
 fi
 ipc toggleNew >/dev/null; sleep 1.2
 is "pressing again puts it away" "$(python3 -c "
@@ -213,7 +213,7 @@ import json;d=json.load(open('$DATA/floats.json'));print('ghost-note-that-does-n
 # --- attachments --------------------------------------------------------------
 # Clipboard tests are opt-in: the clipboard is global, and a test run has no
 # business overwriting whatever the user had on it.
-if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
+if [[ ${NOTESTRIP_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
   ATT=$(ipc create "note with a picture"); settle
   magick -size 40x40 xc:teal "$DATA/probe.png" 2>/dev/null \
     || convert -size 40x40 xc:teal "$DATA/probe.png" 2>/dev/null
@@ -233,42 +233,42 @@ if [[ ${LEDGE_TEST_CLIPBOARD:-0} == 1 ]] && command -v wl-copy >/dev/null; then
   is "deleting a note takes its attachments" "$([[ -d $DATA/attachments/$ATT ]] && echo present || echo gone)" "gone"
   wl-copy --clear 2>/dev/null || true
 else
-  echo "  skip attachments (set LEDGE_TEST_CLIPBOARD=1 to include; it overwrites your clipboard)"
+  echo "  skip attachments (set NOTESTRIP_TEST_CLIPBOARD=1 to include; it overwrites your clipboard)"
 fi
 
 # --- first run ----------------------------------------------------------------
 # A separate instance against a genuinely untouched directory, since the suite
 # above deliberately starts from a seeded marker.
-FRESH=$(mktemp -d /tmp/ledge-fresh.XXXXXX)
-LEDGE_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >"$FRESH/log" 2>&1 &
+FRESH=$(mktemp -d /tmp/notestrip-fresh.XXXXXX)
+NOTESTRIP_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >"$FRESH/log" 2>&1 &
 FPID=$!
 for _ in $(seq 1 60); do
-  qs ipc --pid "$FPID" call ledge ping >/dev/null 2>&1 && break
+  qs ipc --pid "$FPID" call notestrip ping >/dev/null 2>&1 && break
   sleep 0.2
 done
 sleep 1.2
-fresh_titles=$(qs ipc --pid "$FPID" call ledge list 2>/dev/null \
+fresh_titles=$(qs ipc --pid "$FPID" call notestrip list 2>/dev/null \
   | python3 -c 'import sys,json;print(",".join(n["title"] for n in json.load(sys.stdin)))')
-is "a fresh install seeds one welcome note" "$fresh_titles" "Welcome to Ledge"
+is "a fresh install seeds one welcome note" "$fresh_titles" "Welcome to NoteStrip"
 is "and records that it did" "$([[ -f $FRESH/.seeded ]] && echo yes)" "yes"
 
 # Deleting everything must not bring it back on the next start.
-for nid in $(qs ipc --pid "$FPID" call ledge list 2>/dev/null \
+for nid in $(qs ipc --pid "$FPID" call notestrip list 2>/dev/null \
              | python3 -c 'import sys,json
 for n in json.load(sys.stdin): print(n["id"])'); do
-  qs ipc --pid "$FPID" call ledge remove "$nid" >/dev/null 2>&1
+  qs ipc --pid "$FPID" call notestrip remove "$nid" >/dev/null 2>&1
 done
 sleep 1
 kill "$FPID" 2>/dev/null; wait "$FPID" 2>/dev/null
-LEDGE_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >>"$FRESH/log" 2>&1 &
+NOTESTRIP_DATA_DIR="$FRESH" qs --path "$SHELL_DIR" >>"$FRESH/log" 2>&1 &
 FPID=$!
 for _ in $(seq 1 60); do
-  qs ipc --pid "$FPID" call ledge ping >/dev/null 2>&1 && break
+  qs ipc --pid "$FPID" call notestrip ping >/dev/null 2>&1 && break
   sleep 0.2
 done
 sleep 1.2
 is "and does not seed again once emptied" \
-   "$(qs ipc --pid "$FPID" call ledge list 2>/dev/null | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')" "0"
+   "$(qs ipc --pid "$FPID" call notestrip list 2>/dev/null | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))')" "0"
 kill "$FPID" 2>/dev/null; wait "$FPID" 2>/dev/null
 rm -rf "$FRESH"
 

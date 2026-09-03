@@ -1,6 +1,6 @@
 # Hyprland integration
 
-Ledge has two very different kinds of surface, on purpose.
+NoteStrip has two very different kinds of surface, on purpose.
 
 ## The strip is a layer surface
 
@@ -25,16 +25,16 @@ window-sized buffer instead of a full-screen one per monitor.
 
 The trade is that a window would tile and take focus without help.
 
-## The rules Ledge applies
+## The rules NoteStrip applies
 
-Ledge applies these itself at startup, so there is nothing to add to your
+NoteStrip applies these itself at startup, so there is nothing to add to your
 config. They match on title, because `class` is `org.quickshell` and is shared
 with every other Quickshell instance on the system, including the Omarchy shell
 itself.
 
 ```lua
 hl.window_rule({
-  match = { title = "^(ledge-note:.*)$" },
+  match = { title = "^(notestrip-note:.*)$" },
   float = true,
   pin = true,
   no_initial_focus = true,
@@ -49,7 +49,7 @@ hl.window_rule({
 `pin` is what makes a sticky note behave like one: it follows you between
 workspaces instead of being stranded on the one you popped it out from.
 `no_initial_focus` stops a note reappearing mid-sentence and eating the rest of
-it. Border, rounding and shadow are all turned off because Ledge draws its own.
+it. Border, rounding and shadow are all turned off because NoteStrip draws its own.
 
 Opacity is deliberately absent, so a note is as translucent as the desktop makes
 its windows. On Omarchy that is the `default-opacity` tag every window gets, and
@@ -68,7 +68,7 @@ Placement is a second rule per note, carrying the position and size from
 
 ```lua
 hl.window_rule({
-  match = { title = "^(ledge-note:<id>)$" },
+  match = { title = "^(notestrip-note:<id>)$" },
   monitor = "<output name>",
   no_initial_focus = true,   -- false for a note just created by SUPER + N
   move = { x, y },
@@ -77,13 +77,13 @@ hl.window_rule({
 ```
 
 Coordinates are relative to the output the rule names, which is why the rule
-names one. `floats.json` stores the note in global desktop coordinates and
-records which output it was dropped on, and Ledge subtracts that output's origin
-on the way out.
+names one. `floats.json` records the output plus coordinates relative to that
+output. Geometry read back from Hyprland is global, so NoteStrip converts it to
+the relative stored form when the note settles.
 
 The obvious alternative is `move = { x, y, exact = true }`, which claims to take
 absolute coordinates and skip the output entirely. It does not do so reliably on
-a secondary monitor, and because Ledge reads the geometry back off the
+a secondary monitor, and because NoteStrip reads the geometry back off the
 compositor and stores it again, the error compounds a little on every restart
 until the note walks off the screen.
 
@@ -93,7 +93,7 @@ bad coordinate silently taking `float` and `pin` with it and every note tiling.
 Kept apart, the worst a bad placement rule can do is leave one note in the wrong
 place.
 
-A window rule only applies to a window that has not mapped yet, so Ledge does
+A window rule only applies to a window that has not mapped yet, so NoteStrip does
 not add a note to the float table until its placement rule has landed. Without
 that ordering the note flashes wherever Hyprland would have put it, or gets
 tiled outright.
@@ -101,7 +101,7 @@ tiled outright.
 ## Two config parsers, two routes
 
 Hyprland has two config parsers and they take window rules by completely
-different routes. Ledge tries the Lua route first and lets the compositor's own
+different routes. NoteStrip tries the Lua route first and lets the compositor's own
 answer pick the other one.
 
 Under the Lua parser (Omarchy 4, and anything else opting in) `hyprctl keyword`
@@ -115,14 +115,14 @@ Under the classic parser there is no `hl.window_rule` to call, and rules go in
 as keywords instead:
 
 ```bash
-hyprctl --batch "keyword windowrule float, title:^(ledge-note:.*)\$ ; keyword windowrule pin, title:^(ledge-note:.*)\$"
+hyprctl --batch "keyword windowrule float, title:^(notestrip-note:.*)\$ ; keyword windowrule pin, title:^(notestrip-note:.*)\$"
 ```
 
 Assuming either parser strands every user of the other with popped-out notes
 that tile instead of floating. **The classic-parser path is written to the
 documented syntax but has not been run against a classic-parser Hyprland**, for
 want of one to test on. If popped-out notes tile for you, that is the first
-thing to check, and `ledge version` reports your compositor.
+thing to check, and `notestrip version` reports your compositor.
 
 Which parser is in use is not predicted. Quickshell exposes `Hyprland.usingLua`,
 but it is filled in asynchronously and still reads false for the first few
@@ -135,7 +135,7 @@ note tiled.
 So the Lua route goes in first and the reply decides. Hyprland answers `ok` and
 nothing else when it accepts a command; anything else means the classic route,
 which is then run instead. That needs no readiness signal and does not depend on
-the exact wording of the refusal. Any reply other than `ok` to the rules Ledge
+the exact wording of the refusal. Any reply other than `ok` to the rules NoteStrip
 finally settles on is logged as a warning.
 
 The Lua route is `hyprctl eval`, which wraps its argument in `return
@@ -150,14 +150,14 @@ Two things to watch, both of which fail silently as "my notes are tiled again":
 
 - The chunk is Lua source. A backslash in a rule regex has to be doubled, or
   Lua rejects it as an invalid escape and **the entire chunk is discarded**,
-  taking every rule in it with it. Ledge escapes regex metacharacters but
+  taking every rule in it with it. NoteStrip escapes regex metacharacters but
   deliberately leaves hyphens alone: `\-` is not valid Lua, and a hyphen outside
   a character class is already literal. This is why the base rule is applied
-  separately, and why Ledge logs a warning naming which set of rules Hyprland
+  separately, and why NoteStrip logs a warning naming which set of rules Hyprland
   refused.
 - Rules applied this way live in the compositor, not your config, so
-  `hyprctl reload` drops them. Ledge reapplies on startup; if you reload
-  Hyprland while Ledge is running, restart it with `ledge restart`.
+  `hyprctl reload` drops them. NoteStrip reapplies on startup; if you reload
+  Hyprland while NoteStrip is running, restart it with `notestrip restart`.
 
 ## Keybinding
 
@@ -165,7 +165,7 @@ Two things to watch, both of which fail silently as "my notes are tiled again":
 anything here, and it matches the macOS original's new-note chord.
 
 ```lua
-o.bind("SUPER + N", "New note", "ledge new")
+o.bind("SUPER + N", "New note", "notestrip new")
 ```
 
-Bare `ledge new` toggles, so the same key puts the note away again.
+Bare `notestrip new` toggles, so the same key puts the note away again.

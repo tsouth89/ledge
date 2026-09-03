@@ -4,15 +4,19 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// User settings, hot-reloaded from ~/.config/ledge/config.json.
+// User settings, hot-reloaded from ~/.config/notestrip/config.json.
 // Every key is optional; the defaults below are the shipped behaviour.
 QtObject {
   id: root
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string path: {
-    var override = Quickshell.env("LEDGE_CONFIG")
-    return (override && override.length) ? override : home + "/.config/ledge/config.json"
+    var override = Quickshell.env("NOTESTRIP_CONFIG")
+    if (!override || !override.length) override = Quickshell.env("LEDGE_CONFIG")
+    if (override && override.length) return override
+    var configHome = Quickshell.env("XDG_CONFIG_HOME")
+    if (!configHome || !configHome.length) configHome = home + "/.config"
+    return configHome + "/notestrip/config.json"
   }
 
   property var values: ({})
@@ -102,7 +106,7 @@ QtObject {
         var parsed = JSON.parse(text() || "{}")
         root.values = (parsed && typeof parsed === "object") ? parsed : ({})
       } catch (e) {
-        console.warn("ledge: config.json is not valid JSON, using defaults:", e)
+        console.warn("notestrip: config.json is not valid JSON, using defaults:", e)
       }
     }
     onFileChanged: reload()

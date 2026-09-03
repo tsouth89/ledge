@@ -16,12 +16,17 @@ jobs:
 
       - name: Shell syntax
         run: |
+          bash -n bin/notestrip
           bash -n bin/ledge
           bash -n test/smoke.sh
+          bash -n test/migration.sh
           bash -n test/packaging-covers-sources.sh
 
       - name: Shellcheck
-        run: shellcheck bin/ledge test/smoke.sh test/packaging-covers-sources.sh
+        run: shellcheck bin/notestrip bin/ledge test/smoke.sh test/migration.sh test/packaging-covers-sources.sh
+
+      - name: Legacy state migration
+        run: ./test/migration.sh
 
       - name: Markup unit tests
         # The only part of the app with no Qt in it, so the only part that can
@@ -29,7 +34,7 @@ jobs:
         run: node test/markup.js
 
       - name: Desktop entry
-        run: desktop-file-validate ledge.desktop
+        run: desktop-file-validate notestrip.desktop
 
       - name: Packaging covers every shell file
         # The package once shipped without Core/Markup.js because the install

@@ -706,7 +706,7 @@ Item {
             if (editor.text === note.body) return
 
             // Typing sets the body itself, so reaching here with a different
-            // body means something outside Ledge rewrote the file. With the
+            // body means something outside NoteStrip rewrote the file. With the
             // caret in the text, the user's version wins -- but the other one
             // is kept rather than quietly overwritten on the next keystroke.
             if (editor.activeFocus) {

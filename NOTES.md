@@ -1,4 +1,4 @@
-# Ledge - working notes
+# NoteStrip - working notes
 
 Live handoff doc. Read this first.
 
@@ -11,18 +11,18 @@ is clean.
 
 | | |
 |---|---|
-| source | `~/Projects/ledge` (this repo) |
-| remote | `github.com/tsouth89/ledge`, public, `main` |
+| source | `~/Projects/notestrip` (this repo) |
+| remote | `github.com/tsouth89/notestrip`, public, `main` |
 | release | v0.1.0, with a built package attached |
-| off-disk backup | `/data/backups/ledge-*.bundle` (`git clone` restores from it) |
-| notes and data | `~/.local/share/ledge/` |
-| settings | `~/.config/ledge/config.json` (absent = defaults) |
-| keybinds | `~/.config/hypr/bindings.lua`, in a `ledge:bindings` block |
-| autostart | `~/.config/hypr/autostart.lua`, in a `ledge:autostart` block |
-| on PATH | `~/.local/bin/ledge` -> this repo, so it follows the working tree |
+| off-disk backup | `/data/backups/notestrip-*.bundle` (`git clone` restores from it) |
+| notes and data | `~/.local/share/notestrip/` |
+| settings | `~/.config/notestrip/config.json` (absent = defaults) |
+| keybinds | `~/.config/hypr/bindings.lua`, in a `notestrip:bindings` block |
+| autostart | `~/.config/hypr/autostart.lua`, in a `notestrip:autostart` block |
+| on PATH | `~/.local/bin/notestrip` -> this repo, so it follows the working tree |
 
 Brandon is using this for real notes as of 2026-08-30. **Do not test against
-`~/.local/share/ledge`.** Every test run must set `LEDGE_DATA_DIR` to a
+`~/.local/share/notestrip`.** Every test run must set `NOTESTRIP_DATA_DIR` to a
 throwaway directory; `test/smoke.sh` already does. Two of his notes needed
 repairing after being used as test subjects, and one lost its archived flag.
 
@@ -30,8 +30,8 @@ repairing after being used as test subjects, and one lost its archived flag.
 
 ```bash
 ./test/smoke.sh          # 45 assertions, needs a Wayland session
-ledge restart            # reload after editing QML
-ledge stats              # notes, live, floating, reaped, ready
+notestrip restart            # reload after editing QML
+notestrip stats              # notes, live, floating, reaped, ready
 ```
 
 `reaped` should stay at 0 while notes are merely being edited. If it climbs,
@@ -66,19 +66,19 @@ shell/
   shell.qml        ShellRoot, Variants over screens, IPC surface
   Core/            singletons (module qs.Core)
     Theme.qml      parses the live Omarchy theme, generates note swatches
-    Config.qml     ~/.config/ledge/config.json
+    Config.qml     ~/.config/notestrip/config.json
     Store.qml      notes model + file IO
     Bus.qml        signals from CLI/IPC into the strips
   Ui/              module qs.Ui
     Edge.qml       the layer surface, input region, state machine
     Note.qml       one note in all three states (rest/peek/open)
-bin/ledge          CLI wrapper over `qs ipc`
+bin/notestrip          CLI wrapper over `qs ipc`
 ```
 
 ## Things that cost time, do not rediscover them
 
 **Quickshell registers the config root as the `qs` module prefix.** A directory
-`Core/` with `module qs.Core` in its qmldir imports as `qs.Core`. Not `ledge.Core`,
+`Core/` with `module qs.Core` in its qmldir imports as `qs.Core`. Not `notestrip.Core`,
 not a path-relative import. Omarchy's own shell does the same with `qs.Commons`.
 
 **`IpcHandler` lives in `Quickshell.Io`**, not `Quickshell`.
@@ -202,10 +202,10 @@ and placement rules are separate calls: the worst a bad placement rule can now
 do is leave one note in the wrong position. Verified by injecting a malformed
 id and confirming the notes still float.
 
-**Do not try to reposition a live window from Ledge.** `hl.dispatch(dispatcher,
+**Do not try to reposition a live window from NoteStrip.** `hl.dispatch(dispatcher,
 "title:...")` does *not* target by title -- it falls through to the focused
 window, so an attempt to nudge a note moved whatever the user was actually
-using. Ledge is read-only toward window geometry: it asks Hyprland where a note
+using. NoteStrip is read-only toward window geometry: it asks Hyprland where a note
 ended up and remembers that. Placement happens once, through a rule, before the
 window exists.
 
@@ -261,8 +261,8 @@ out of the way" hands focus to whatever sits under it -- twice this typed into
 the user's browser. Hyprland can target a window directly, which cannot leak:
 
 ```bash
-hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "title:ledge-library" }))'
-hyprctl eval 'hl.dispatch(hl.dsp.send_shortcut({ mods = "", key = "Down", window = "title:ledge-library" }))'
+hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "title:notestrip-library" }))'
+hyprctl eval 'hl.dispatch(hl.dsp.send_shortcut({ mods = "", key = "Down", window = "title:notestrip-library" }))'
 ```
 
 Note `hl.dsp.cursor.move` warps the pointer without re-running focus-follows-
@@ -366,7 +366,7 @@ is below.
 
 Done in that pass, for the record: clickable links, `Ctrl`+Return to detach a
 note from the Library, a snooze action on reminders, copy-to-clipboard as a note
-control and as `ledge copy`, and a `floatFollows` config switch for whether a
+control and as `notestrip copy`, and a `floatFollows` config switch for whether a
 popped note follows you between workspaces.
 
 1. **Per-note control of workspace following.** `floatFollows` is currently one
@@ -393,7 +393,7 @@ All verified on this box on 2026-08-30, and all already correct:
 
 - Theme follows `omarchy theme set` live, including the font, from the same
   `colors.toml` / `shell.toml` the Omarchy shell reads
-- Reminders notify through `notify-send --app-name=Ledge --icon=ledge`
+- Reminders notify through `notify-send --app-name=NoteStrip --icon=notestrip`
 - Keybinds go in through `o.bind` with descriptions, so they appear in
   Omarchy's own keybindings menu
 - Desktop entry has actions, the systemd unit and autostart both work, the
@@ -411,6 +411,7 @@ place with `remove`/`insert` precisely to avoid that, and says so.
 
 ```bash
 node test/markup.js    # no display needed; this one runs in CI
+./test/migration.sh    # verifies the Ledge 0.1 data/config move
 ./test/smoke.sh
 ```
 
@@ -420,7 +421,7 @@ or the keyboard. It guards the same-width invariant directly: style a string,
 strip the tags, and assert you get the input back. Add to it in preference to
 the smoke suite whenever the logic can be reached without a session.
 
-`smoke.sh` runs a second Ledge instance against a throwaway `LEDGE_DATA_DIR` and drives it
+`smoke.sh` runs a second NoteStrip instance against a throwaway `NOTESTRIP_DATA_DIR` and drives it
 over IPC, asserting on what lands on disk, and where the compositor is the thing
 that matters, on what Hyprland reports. It never touches real notes. The
 strip appears on screen for a few seconds while it runs, which is the point:
@@ -435,8 +436,8 @@ Not covered, because it needs a real pointer: hover-to-peek, drag reorder,
 dragging a float between monitors, and the resize grip.
 
 Two assertions are opt-in because they take something global away from whoever
-is at the machine: `LEDGE_TEST_CLIPBOARD=1` overwrites the clipboard, and
-`LEDGE_TEST_FOCUS=1` takes the keyboard away mid-run to check that a new note
+is at the machine: `NOTESTRIP_TEST_CLIPBOARD=1` overwrites the clipboard, and
+`NOTESTRIP_TEST_FOCUS=1` takes the keyboard away mid-run to check that a new note
 is typeable. Do not turn the focus one on while Brandon is working; it makes the
 session unusable for the length of the run, and it depends on the pointer
 sitting still, so it fails for reasons that have nothing to do with the code.

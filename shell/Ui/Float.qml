@@ -26,7 +26,7 @@ import qs.Core
 //
 // The trade is that a toplevel is a window, and would tile and take focus
 // without help. See docs/hyprland.md for the rules that make it behave like the
-// desktop object it is; Ledge applies them itself at startup.
+// desktop object it is; NoteStrip applies them itself at startup.
 FloatingWindow {
   id: win
 
@@ -41,7 +41,7 @@ FloatingWindow {
   // Matched by the window rules. Keep it stable and distinctive: `class` is
   // shared with every other Quickshell instance on the system, including the
   // Omarchy shell itself, so rules key off the title instead.
-  title: "ledge-note:" + noteId
+  title: "notestrip-note:" + noteId
 
   color: "transparent"
 
@@ -138,7 +138,7 @@ FloatingWindow {
   // created, which is before `settled` and therefore ignored, and Hyprland does
   // not push a fresh object for every step of a drag. So the window's real
   // geometry is also re-read on a slow tick while it exists. This is read-only
-  // -- Ledge asks the compositor where the note is and remembers it, and never
+  // -- NoteStrip asks the compositor where the note is and remembers it, and never
   // tells it where to put a window that is already on screen.
   Timer {
     running: win.visible

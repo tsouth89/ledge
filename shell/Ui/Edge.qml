@@ -51,7 +51,7 @@ PanelWindow {
   // make the first one, so it can never be the thing that is missing.
   visible: active && Store.ready
 
-  WlrLayershell.namespace: "ledge"
+  WlrLayershell.namespace: "notestrip"
   WlrLayershell.layer: Config.layer === "overlay" ? WlrLayer.Overlay : WlrLayer.Top
   // Accept focus from the moment the strip fans out, not only once a note is
   // open.

@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Ledge
+Name=NoteStrip
 GenericName=Sticky Notes
 Comment=Sticky notes that live on the edge of your screen
-Exec=ledge start
-Icon=ledge
+Exec=notestrip start
+Icon=notestrip
 Terminal=false
 Categories=Utility;TextEditor;
 Actions=NewNote;AllNotes;
@@ -16,8 +16,8 @@ NoDisplay=false
 
 [Desktop Action NewNote]
 Name=New note
-Exec=ledge new
+Exec=notestrip new
 
 [Desktop Action AllNotes]
 Name=All notes
-Exec=ledge all
+Exec=notestrip all

@@ -1,4 +1,4 @@
-# Ledge
+# NoteStrip
 
 Sticky notes that live on the edge of your screen, for Hyprland.
 
@@ -11,11 +11,11 @@ folds back to a dash.
 Everything else on the surface is click-through, so the strip costs you nothing
 until you reach for it.
 
-![ledge](docs/ledge.png)
+![notestrip](docs/notestrip.png)
 
 ## Why not just a window
 
-Ledge is a `wlr-layer-shell` surface, not a floating window. That means it is a
+NoteStrip is a `wlr-layer-shell` surface, not a floating window. That means it is a
 desktop component in the same sense your bar is: it never appears in the window
 list, never takes focus you did not give it, is never tiled, and does not steal
 the pointer. The only parts of it that accept input are the strip itself and
@@ -24,25 +24,25 @@ not there.
 
 ## Install
 
-An AUR package is planned. Until it is published, build Ledge yourself. The
+An AUR package is planned. Until it is published, build NoteStrip yourself. The
 PKGBUILD is in the repository and fetches the tagged release:
 
 ```bash
-git clone https://github.com/tsouth89/ledge
-cd ledge
+git clone https://github.com/tsouth89/notestrip
+cd notestrip
 makepkg -si
 ```
 
 Then start it, either as a user service:
 
 ```bash
-systemctl --user enable --now ledge
+systemctl --user enable --now notestrip
 ```
 
 or from your compositor's autostart, if you would rather not involve systemd:
 
 ```
-exec-once = ledge start
+exec-once = notestrip start
 ```
 
 On Omarchy that goes in `~/.config/hypr/autostart.lua`.
@@ -50,8 +50,15 @@ On Omarchy that goes in `~/.config/hypr/autostart.lua`.
 To run it straight from a clone without installing anything:
 
 ```bash
-./bin/ledge start
+./bin/notestrip start
 ```
+
+### Upgrading from Ledge 0.1
+
+The first `notestrip start` moves `~/.local/share/ledge` and
+`~/.config/ledge` to their NoteStrip paths when the destination does not yet
+exist. It leaves compatibility symlinks behind, and the `ledge` command remains
+an alias during the 0.x releases. Existing notes and scripts keep working.
 
 Requires `quickshell`, a `wlr-layer-shell` compositor, and a Nerd Font for the
 note controls (`ttf-jetbrains-mono-nerd` by default -- without one those icons
@@ -65,11 +72,11 @@ will open unplaced elsewhere.
 Suggested keybindings:
 
 ```lua
-o.bind("SUPER + N", "New note", "ledge new")
-o.bind("SUPER + SHIFT + L", "All notes", "ledge all")
+o.bind("SUPER + N", "New note", "notestrip new")
+o.bind("SUPER + SHIFT + L", "All notes", "notestrip all")
 ```
 
-`ledge version` prints everything a bug report needs.
+`notestrip version` prints everything a bug report needs.
 
 ## Use
 
@@ -114,14 +121,14 @@ to open, or hover for the button to drop it.
 Images are files beside the notes, not markdown embedded in them:
 
 ```
-~/.local/share/ledge/attachments/<note-id>/<timestamp>.png
+~/.local/share/notestrip/attachments/<note-id>/<timestamp>.png
 ```
 
 `![](/some/long/path.png)` in the text would be styled, wrapped, edited and
 eventually broken by hand, and it would eat four lines of a sticky note to say
 "there is a picture here". Deleting a note takes its images with it.
 
-`ledge attach <id>` does the same thing from a script.
+`notestrip attach <id>` does the same thing from a script.
 
 ### Reminders
 
@@ -131,14 +138,14 @@ notification carries an "Open note" action that brings the note back up.
 
 Reminders live in the note's frontmatter, so they travel with the file. Nothing
 schedules a timer per note; the list is swept periodically instead, which means
-a reminder that came due while the machine was asleep, or while Ledge was not
+a reminder that came due while the machine was asleep, or while NoteStrip was not
 running, still fires the next time it is looked at rather than being silently
 skipped.
 
 ```bash
-ledge remind <id> 90m
-ledge remind <id> 2026-09-01T09:00:00Z
-ledge remind <id> clear
+notestrip remind <id> 90m
+notestrip remind <id> 2026-09-01T09:00:00Z
+notestrip remind <id> clear
 ```
 
 ### All notes
@@ -158,7 +165,7 @@ the note to find it, `Ctrl` + Return, and it is a sticky under your pointer.
 Deleting a note moves its file to `trash/` rather than unlinking it, and the
 trash view lists what is in there with how long ago it went, so a note you
 deleted by mistake is two clicks from being back. Emptying the trash is the only
-thing in Ledge that destroys anything, and it asks twice.
+thing in NoteStrip that destroys anything, and it asks twice.
 
 Export writes every note into one markdown file, using each note's first line as
 its heading.
@@ -177,49 +184,49 @@ exactly like every other window on your desktop. Position and size persist in
 
 Popped-out notes are pinned, borderless, and do not take focus when they appear,
 so one parked on your desktop follows you between workspaces without ever
-catching a keystroke meant for something else. Ledge applies the Hyprland rules
+catching a keystroke meant for something else. NoteStrip applies the Hyprland rules
 for this itself; see [docs/hyprland.md](docs/hyprland.md) if you want to know
 exactly what it sets and why.
 
 ## Command line
 
 ```
-ledge start | stop | restart | status
-ledge stats             internal health counters as JSON
-ledge new [text]        create a note as a sticky on the desktop (reads stdin)
-ledge add [text]        append to the most recent note (reads stdin)
-ledge list              every note as JSON
-ledge all               open the All Notes window
-ledge attach <id>       attach the image on the clipboard to a note
-ledge remind <id> <when>  set or clear a reminder
-ledge export [path]     write every note to one markdown file
-ledge trash             list deleted notes as JSON
-ledge restore <file>    bring a deleted note back
-ledge open <id>         open one note for editing
-ledge copy <id>         copy a note's text to the clipboard
-ledge rm <id>           move a note to the trash
-ledge move <id> <n>     move a note to position n (0 is first)
-ledge pop <id>          detach a note to float on the desktop
-ledge place <id> <x> <y>  move a floating note (global screen coordinates)
-ledge dock <id>         send a floating note back to the strip
-ledge peek              fan the strip open
-ledge close             collapse it
-ledge log               tail the running instance's log
-ledge dir               print the data directory
-ledge install-desktop   add Ledge to your launcher when running from a clone
-ledge version           version and environment for bug reports
+notestrip start | stop | restart | status
+notestrip stats             internal health counters as JSON
+notestrip new [text]        create a note as a sticky on the desktop (reads stdin)
+notestrip add [text]        append to the most recent note (reads stdin)
+notestrip list              every note as JSON
+notestrip all               open the All Notes window
+notestrip attach <id>       attach the image on the clipboard to a note
+notestrip remind <id> <when>  set or clear a reminder
+notestrip export [path]     write every note to one markdown file
+notestrip trash             list deleted notes as JSON
+notestrip restore <file>    bring a deleted note back
+notestrip open <id>         open one note for editing
+notestrip copy <id>         copy a note's text to the clipboard
+notestrip rm <id>           move a note to the trash
+notestrip move <id> <n>     move a note to position n (0 is first)
+notestrip pop <id>          detach a note to float on the desktop
+notestrip place <id> <x> <y>  move a floating note (global screen coordinates)
+notestrip dock <id>         send a floating note back to the strip
+notestrip peek              fan the strip open
+notestrip close             collapse it
+notestrip log               tail the running instance's log
+notestrip dir               print the data directory
+notestrip install-desktop   add NoteStrip to your launcher when running from a clone
+notestrip version           version and environment for bug reports
 ```
 
 So this works:
 
 ```bash
-dmesg | tail -20 | ledge new
-ledge add "call the vet at 3"
+dmesg | tail -20 | notestrip new
+notestrip add "call the vet at 3"
 ```
 
 `SUPER + N` is the one plain-SUPER letter Omarchy leaves free that actually
 means something here, and it matches the macOS original's new-note chord. Bare
-`ledge new` toggles, so the same key puts the note away again.
+`notestrip new` toggles, so the same key puts the note away again.
 
 A new note arrives as a sticky on the desktop rather than as a dash on the
 strip, because that is what asking for a sticky note means. It takes the
@@ -230,7 +237,7 @@ where you already are.
 ## Your notes are just files
 
 ```
-~/.local/share/ledge/
+~/.local/share/notestrip/
 ├── notes/<id>.md     one note per file, YAML frontmatter
 ├── order             note ids, one per line, display order
 ├── floats.json       geometry of popped-out notes, per monitor
@@ -249,9 +256,9 @@ vet appointment
 ```
 
 Grep them, commit them, sync them, point Obsidian at them, edit them in Neovim
-while Ledge is running: the strip watches the directory and picks up outside
+while NoteStrip is running: the strip watches the directory and picks up outside
 edits live, including into a note that is open at the time. If an edit ever does
-collide with one you are typing, the version Ledge would have replaced is kept
+collide with one you are typing, the version NoteStrip would have replaced is kept
 under `conflicts/` rather than dropped.
 
 Neither ordering nor float position lives in the frontmatter. Dragging a note to a new spot
@@ -276,7 +283,7 @@ frontmatter, to turn it off.
 
 ## Theming
 
-Ledge reads the active Omarchy theme directly and recolours with it:
+NoteStrip reads the active Omarchy theme directly and recolours with it:
 
 ```
 ~/.local/state/omarchy/current/theme/colors.toml
@@ -289,14 +296,14 @@ Note colours are *generated* rather than looked up, and this is deliberate.
 Reading eight swatches off a theme palette by name sounds right and fails in
 practice: a monochrome theme's `red`, `green` and `magenta` are all the same
 hue, so every note ends up the same colour. Osaka Jade's `bright_magenta` is
-`#75bbb3`, a teal. Instead Ledge takes the theme accent's hue, saturation and
+`#75bbb3`, a teal. Instead NoteStrip takes the theme accent's hue, saturation and
 lightness and spreads eight swatches across an arc centred on it. Muted themes
 get muted notes, vivid themes get vivid ones, and the notes stay distinguishable
 from each other in every theme. Widen or narrow the arc with `swatchSpread`.
 
 ## Configuration
 
-`~/.config/ledge/config.json`, hot-reloaded on save. Every key is optional.
+`~/.config/notestrip/config.json`, hot-reloaded on save. Every key is optional.
 See [docs/config.md](docs/config.md).
 
 ```json
@@ -312,10 +319,10 @@ See [docs/config.md](docs/config.md).
 
 ```bash
 ./test/smoke.sh     # drives a throwaway instance over IPC, asserts on disk state
-./bin/ledge restart # reload after editing the QML
+./bin/notestrip restart # reload after editing the QML
 ```
 
-`LEDGE_DATA_DIR` and `LEDGE_CONFIG` override where notes and settings live,
+`NOTESTRIP_DATA_DIR` and `NOTESTRIP_CONFIG` override where notes and settings live,
 which is how the tests stay clear of real notes.
 
 ## License

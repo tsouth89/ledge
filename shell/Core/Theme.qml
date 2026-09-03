@@ -6,7 +6,7 @@ import Quickshell.Io
 
 // Live view of the active Omarchy theme.
 //
-// Reads the same two files the Omarchy shell reads, so Ledge recolors in step
+// Reads the same two files the Omarchy shell reads, so NoteStrip recolors in step
 // with `omarchy theme set` instead of shipping a palette that drifts:
 //
 //   ~/.local/state/omarchy/current/theme/colors.toml   foundational palette
@@ -98,7 +98,7 @@ QtObject {
   readonly property color muted: color("muted", "#5a6468")
   readonly property color urgent: color("red", "#a55555")
 
-  // Surface roles, matching the shell's own tokens so a Ledge card sits next
+  // Surface roles, matching the shell's own tokens so a NoteStrip card sits next
   // to a notification toast without looking like a different application.
   readonly property color surface: token("popups.background", background)
   readonly property color surfaceText: token("popups.text", foreground)

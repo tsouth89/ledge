@@ -1,6 +1,6 @@
 // Unit tests for shell/Core/Markup.js.
 //
-// This is the one part of Ledge that is plain JavaScript with no Qt in it, so
+// This is the one part of NoteStrip that is plain JavaScript with no Qt in it, so
 // it is the one part that can be tested without a Wayland session, a compositor
 // or a window. That matters twice over: it runs in CI, where there is no
 // display at all, and it runs without taking the keyboard away from whoever is

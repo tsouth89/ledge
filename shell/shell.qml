@@ -50,7 +50,7 @@ ShellRoot {
     return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\\\$&")
   }
 
-  function noteTitleRe(id) { return "^(ledge-note:" + shell.reEscape(id) + ")$" }
+  function noteTitleRe(id) { return "^(notestrip-note:" + shell.reEscape(id) + ")$" }
 
   // Placement is expressed the way Hyprland applies it: pin the window to a
   // named output, then offset within that output. `exact = true` claims to make
@@ -136,12 +136,12 @@ ShellRoot {
   }
 
   function legacyBaseCommand() {
-    var match = 'title:^(ledge-note:.*)$'
+    var match = 'title:^(notestrip-note:.*)$'
     var parts = []
     for (var i = 0; i < legacyBaseRules.length; i++)
       parts.push(legacyKeyword(legacyBaseRules[i], match))
-    parts.push(legacyKeyword("float", 'title:^(ledge-library)$'))
-    parts.push(legacyKeyword("center", 'title:^(ledge-library)$'))
+    parts.push(legacyKeyword("float", 'title:^(notestrip-library)$'))
+    parts.push(legacyKeyword("center", 'title:^(notestrip-library)$'))
     return ["hyprctl", "--batch", parts.join(" ; ")]
   }
 
@@ -149,7 +149,7 @@ ShellRoot {
     var parts = []
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i]
-      var match = "title:^(ledge-note:" + e.id + ")$"
+      var match = "title:^(notestrip-note:" + e.id + ")$"
       var pad = Config.floatShadowPad
       if (e.st.monitor && e.st.monitor.length)
         parts.push(legacyKeyword("monitor " + e.st.monitor, match))
@@ -162,7 +162,7 @@ ShellRoot {
   }
 
   readonly property string libraryRuleLua:
-    'hl.window_rule({ match = { title = "^(ledge-library)$" }'
+    'hl.window_rule({ match = { title = "^(notestrip-library)$" }'
     + ', tag = "-default-opacity", float = true, center = true'
     + ', no_dim = true, opacity = "1 1" })'
 
@@ -175,7 +175,7 @@ ShellRoot {
   // typing in", and a sticky note is almost never the focused window; obeying
   // it would leave every note greyed out all day.
   readonly property string baseRuleLua:
-    'hl.window_rule({ match = { title = "^(ledge-note:.*)$" }'
+    'hl.window_rule({ match = { title = "^(notestrip-note:.*)$" }'
     + ', float = true, pin = ' + (Config.floatFollows ? "true" : "false")
     + ', no_initial_focus = true'
     + ', no_blur = true, no_shadow = true, no_dim = true'
@@ -229,7 +229,7 @@ ShellRoot {
 
   function checkRuleResult(which, text) {
     if (!shell.ruleOk(text))
-      console.warn("ledge: Hyprland rejected the " + which + " window rules, "
+      console.warn("notestrip: Hyprland rejected the " + which + " window rules, "
                    + "popped-out notes will not behave correctly:", text)
   }
 
@@ -370,7 +370,7 @@ ShellRoot {
       y -= 10
     } else {
       // No pointer to go on. Fall back to the top corner of the output being
-      // looked at, which is where `ledge pop` puts a note too.
+      // looked at, which is where `notestrip pop` puts a note too.
       var base = shell.focusedScreen()
       x = (base ? base.x : 0) + 80
       y = (base ? base.y : 0) + 120
@@ -432,7 +432,7 @@ ShellRoot {
   //
   // A reminder is a timestamp in a note's frontmatter. Nothing schedules a
   // timer per note: the list is swept periodically instead, which means a
-  // reminder that came due while the machine was asleep, or while Ledge was not
+  // reminder that came due while the machine was asleep, or while NoteStrip was not
   // running, still fires the next time it is looked at rather than being
   // silently skipped.
 
@@ -495,7 +495,7 @@ ShellRoot {
                   .filter(function (l) { return l.replace(/\s+/g, "").length })
     var proc = notifier.createObject(shell, { noteId: item.id })
     if (!proc) return
-    proc.command = ["notify-send", "--app-name=Ledge", "--icon=ledge",
+    proc.command = ["notify-send", "--app-name=NoteStrip", "--icon=notestrip",
                     "-A", "open=Open note",
                     "-A", "snooze=Snooze " + shell.snoozeMinutes + "m",
                     item.title, lines.slice(0, 4).join("\n")]
@@ -504,12 +504,12 @@ ShellRoot {
 
   // ------------------------------------------------------------------ ipc
   //
-  //   ledge new "text"     create a note and open it
-  //   ledge add "text"     append to the most recent note
-  //   ledge peek           fan the strip open without opening a note
-  //   ledge list           ids, colours and titles as JSON
+  //   notestrip new "text"     create a note and open it
+  //   notestrip add "text"     append to the most recent note
+  //   notestrip peek           fan the strip open without opening a note
+  //   notestrip list           ids, colours and titles as JSON
   IpcHandler {
-    target: "ledge"
+    target: "notestrip"
 
     function ping(): string { return "ok" }
 
@@ -535,7 +535,7 @@ ShellRoot {
     // What SUPER+N is bound to: open a fresh note, or put the open one away.
     function toggleNew(): string { Bus.newRequested(); return "ok" }
 
-    // `ledge new <text>`. Same result as the keybind, with the note already
+    // `notestrip new <text>`. Same result as the keybind, with the note already
     // written, so the two forms of one command do not disagree about where a
     // new note ends up.
     function newFloating(body: string): string { return shell.newFloatingNote(body) }
@@ -632,7 +632,7 @@ ShellRoot {
     }
 
     function exportAll(path: string, includeArchived: string): string {
-      var target = (path && path.length) ? path : (Store.home + "/ledge-notes.md")
+      var target = (path && path.length) ? path : (Store.home + "/notestrip-notes.md")
       var n = Store.exportAll(target, includeArchived !== "false")
       return n + " notes -> " + target
     }

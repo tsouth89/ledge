@@ -18,7 +18,7 @@ QtObject {
   // cannot be answered here.
   signal popToPointerRequested(string id)
   // Published by whichever strip is active, so the note currently open on the
-  // edge is visible to `ledge stats` and therefore assertable.
+  // edge is visible to `notestrip stats` and therefore assertable.
   property string openNoteId: ""
   property bool editing: false
 

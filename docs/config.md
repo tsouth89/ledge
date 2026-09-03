@@ -1,6 +1,6 @@
 # Configuration
 
-`~/.config/ledge/config.json`. Hot-reloaded on save; every key is optional and
+`~/.config/notestrip/config.json`. Hot-reloaded on save; every key is optional and
 the values below are the defaults.
 
 ## Placement

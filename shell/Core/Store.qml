@@ -6,9 +6,9 @@ import Quickshell.Io
 
 // Notes on disk, and the model the UI binds to.
 //
-//   ~/.local/share/ledge/notes/<id>.md    one file per note, YAML frontmatter
-//   ~/.local/share/ledge/order            note ids, one per line, display order
-//   ~/.local/share/ledge/trash/           deleted notes, kept for undo
+//   ~/.local/share/notestrip/notes/<id>.md    one file per note, YAML frontmatter
+//   ~/.local/share/notestrip/order            note ids, one per line, display order
+//   ~/.local/share/notestrip/trash/           deleted notes, kept for undo
 //
 // Ordering lives outside the notes on purpose. Dragging a note to a new
 // position rewrites one small file instead of touching the frontmatter of
@@ -21,8 +21,12 @@ QtObject {
 
   // Overridable so a test run, or a second profile, never touches real notes.
   readonly property string dataDir: {
-    var override = Quickshell.env("LEDGE_DATA_DIR")
-    return (override && override.length) ? override : home + "/.local/share/ledge"
+    var override = Quickshell.env("NOTESTRIP_DATA_DIR")
+    if (!override || !override.length) override = Quickshell.env("LEDGE_DATA_DIR")
+    if (override && override.length) return override
+    var dataHome = Quickshell.env("XDG_DATA_HOME")
+    if (!dataHome || !dataHome.length) dataHome = home + "/.local/share"
+    return dataHome + "/notestrip"
   }
   readonly property string notesDir: dataDir + "/notes"
   readonly property string trashDir: dataDir + "/trash"
@@ -44,9 +48,9 @@ QtObject {
   function maybeSeed() {
     if (!root.ready || !root.seedChecked || root.seeded) return
     root.seeded = true
-    seedMarker.setText("Ledge writes this once, the first time it runs.\n")
+    seedMarker.setText("NoteStrip writes this once, the first time it runs.\n")
     if (notes.count > 0) return
-    create("Welcome to Ledge\n"
+    create("Welcome to NoteStrip\n"
            + "- [ ] reach for the edge to fan these out\n"
            + "- [ ] hover a dash to open its note\n"
            + "- [ ] drag a dash to reorder\n"
@@ -229,7 +233,7 @@ QtObject {
   // typed into is `pending` and deliberately has no file, so popping one out
   // and then restarting loses the note while floats.json keeps its id. The
   // entry then names nothing: `Float` renders nothing for it, but it counts in
-  // `ledge stats` forever and no longer has any way of being cleared.
+  // `notestrip stats` forever and no longer has any way of being cleared.
   //
   // Safe to run after every scan. `notes` is authoritative by the time a scan
   // ends, and a blank note that is merely unsaved is still a row in it, so a
@@ -646,7 +650,7 @@ QtObject {
   // An open editor deliberately ignores changes made to its file by anything
   // else, because yanking text out from under a caret mid-sentence is its own
   // kind of awful. The cost is that the next keystroke would overwrite whatever
-  // the other editor wrote. Rather than pick a side, the version Ledge is about
+  // the other editor wrote. Rather than pick a side, the version NoteStrip is about
   // to overwrite is kept.
 
   property var conflictSeen: ({})
@@ -680,7 +684,7 @@ QtObject {
   // would be styled, wrapped, edited and eventually broken; and an image is not
   // something you want occupying four lines of a sticky note as a URL.
   //
-  //   ~/.local/share/ledge/attachments/<note-id>/<timestamp>.<ext>
+  //   ~/.local/share/notestrip/attachments/<note-id>/<timestamp>.<ext>
 
   readonly property string attachDir: dataDir + "/attachments"
 
@@ -909,7 +913,7 @@ QtObject {
                  + (n.archived ? "  (archived)" : "")
                  + (body.length ? "\n\n" + body + "\n" : "\n"))
     }
-    var doc = "# Ledge notes\n\n" + parts.join("\n---\n\n")
+    var doc = "# NoteStrip notes\n\n" + parts.join("\n---\n\n")
     exportProc.exec(["bash", "-c", 'cat > "$1"', "_", path])
     exportProc.write(doc)
     exportProc.stdinEnabled = false
@@ -1017,7 +1021,7 @@ QtObject {
   }
 
   // One view per note. Gives every note atomic writes and live reload when
-  // something outside Ledge edits the file, without a central write queue.
+  // something outside NoteStrip edits the file, without a central write queue.
   property Instantiator noteViews: Instantiator {
     model: root.notes
     delegate: FileView {

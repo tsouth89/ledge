@@ -1,12 +1,12 @@
 [Unit]
-Description=Ledge - sticky notes on the edge of the screen
-Documentation=https://github.com/tsouth89/ledge
+Description=NoteStrip - sticky notes on the edge of the screen
+Documentation=https://github.com/tsouth89/notestrip
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/qs --path /usr/share/ledge/shell
+ExecStart=/usr/bin/notestrip run-shell
 Restart=on-failure
 RestartSec=2
 Slice=session.slice

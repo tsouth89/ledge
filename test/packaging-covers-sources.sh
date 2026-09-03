@@ -21,6 +21,11 @@ if grep -qE "find shell .*-name '\*\.[a-z]+'" PKGBUILD; then
   fail=1
 fi
 
+if ! grep -q 'exec qs --no-duplicate --path' bin/notestrip; then
+  echo "FAIL: the service entry point can launch duplicate NoteStrip instances."
+  fail=1
+fi
+
 # Every non-QML file the shell imports must be inside shell/, or it will not be
 # packaged no matter how the copy is written.
 while read -r ref; do

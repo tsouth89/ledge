@@ -1,6 +1,6 @@
 # Maintainer: Brandon South <tsouth2@gmail.com>
 pkgname=notestrip
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Sticky notes that live on the edge of the screen, for Hyprland"
 arch=('any')

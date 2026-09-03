@@ -2,7 +2,7 @@
 # notestrip - edge-docked sticky notes for Hyprland
 set -euo pipefail
 
-NOTESTRIP_VERSION=0.2.0
+NOTESTRIP_VERSION=0.2.1
 
 # Keep scripts written for the 0.1 name working through the rename.
 if [[ -z ${NOTESTRIP_SHELL_DIR:-} && -n ${LEDGE_SHELL_DIR:-} ]]; then
@@ -206,7 +206,7 @@ case "$cmd" in
     ;;
   run-shell)
     migrate_legacy_state
-    exec qs --path "$SHELL_DIR"
+    exec qs --no-duplicate --path "$SHELL_DIR"
     ;;
   migrate-state) migrate_legacy_state ;;
   log)     qs log --path "$SHELL_DIR" ;;

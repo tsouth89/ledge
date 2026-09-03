@@ -4,7 +4,7 @@ Live handoff doc. Read this first.
 
 ## Picking this up again
 
-Last worked on 2026-08-30. Everything is committed and pushed; the working tree
+Last worked on 2026-09-03. Everything is committed and pushed; the working tree
 is clean.
 
 **Where things live**
@@ -13,7 +13,7 @@ is clean.
 |---|---|
 | source | `~/Projects/notestrip` (this repo) |
 | remote | `github.com/tsouth89/notestrip`, public, `main` |
-| release | v0.1.0, with a built package attached |
+| release | v0.2.0, with a built package attached |
 | off-disk backup | `/data/backups/notestrip-*.bundle` (`git clone` restores from it) |
 | notes and data | `~/.local/share/notestrip/` |
 | settings | `~/.config/notestrip/config.json` (absent = defaults) |
@@ -369,6 +369,11 @@ note from the Library, a snooze action on reminders, copy-to-clipboard as a note
 control and as `notestrip copy`, and a `floatFollows` config switch for whether a
 popped note follows you between workspaces.
 
+The 2026-09-03 release pass renamed Ledge to NoteStrip, added a safe migration
+for the 0.1 data and config paths, retained the old command as an alias, fixed
+the Omarchy theme reload trigger, exposed `notestrip stats`, and updated the
+release workflow and documentation.
+
 1. **Per-note control of workspace following.** `floatFollows` is currently one
    switch for every note. If keeping a project note on one workspace while the
    shopping list follows you everywhere turns out to matter, this wants a
@@ -382,10 +387,6 @@ popped note follows you between workspaces.
 3. **Non-Hyprland compositors.** The strip is plain layer-shell and should work
    anywhere, but popped-out notes place themselves with Hyprland window rules
    and would float unplaced on Sway or niri. Untested either way.
-4. **Rename and release.** Pick the permanent note-focused name, update the
-   package and desktop integration in one pass, then publish the 13 commits
-   after v0.1.0 as the next release. Submit the renamed package to the AUR and
-   update any marketplace or competition entry after the release is live.
 
 ### Omarchy fit, checked rather than assumed
 

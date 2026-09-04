@@ -1,6 +1,6 @@
 [Unit]
 Description=NoteStrip - sticky notes on the edge of the screen
-Documentation=https://github.com/tsouth89/notestrip
+Documentation=https://github.com/btsouth/notestrip
 PartOf=graphical-session.target
 After=graphical-session.target
 

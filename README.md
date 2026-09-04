@@ -28,7 +28,7 @@ Build NoteStrip with the included PKGBUILD. A ready-made Arch package is also
 attached to each GitHub release:
 
 ```bash
-git clone https://github.com/tsouth89/notestrip
+git clone https://github.com/btsouth/notestrip
 cd notestrip
 makepkg -si
 ```

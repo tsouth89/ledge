@@ -12,7 +12,7 @@ is clean.
 | | |
 |---|---|
 | source | `~/Projects/notestrip` (this repo) |
-| remote | `github.com/tsouth89/notestrip`, public, `main` |
+| remote | `github.com/btsouth/notestrip`, public, `main` |
 | release | v0.3.0, with a built package attached |
 | off-disk backup | `/data/backups/notestrip-*.bundle` (`git clone` restores from it) |
 | notes and data | `~/.local/share/notestrip/` |
